@@ -5,6 +5,7 @@ import br.com.gastos.financeiro.core.model.enums.ExpenseType;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Objects;
 import java.util.UUID;
 
 public class Expense {
@@ -20,14 +21,26 @@ public class Expense {
 
     public Expense(UUID id, UUID userId, UUID categoryId, Money amount, String description, LocalDate dueDate, ExpenseType type) {
         this.id = id != null ? id : UUID.randomUUID();
-        this.userId = userId;
+        this.userId = Objects.requireNonNull(userId, "O usuário é obrigatório.");
         this.categoryId = categoryId;
-        this.amount = amount;
+        this.amount = Objects.requireNonNull(amount, "O valor da despesa é obrigatório.");
         this.description = description;
-        this.dueDate = dueDate;
-        this.type = type;
+        this.dueDate = Objects.requireNonNull(dueDate, "A data de vencimento é obrigatória.");
+        this.type = Objects.requireNonNull(type, "O tipo da despesa é obrigatório.");
         this.status = ExpenseStatus.PENDING;
         this.paidAt = null;
+    }
+
+    /**
+     * Construtor de reconstituição: usado apenas pela camada de persistência para
+     * restaurar uma despesa já existente sem passar de novo pelas regras de transição.
+     */
+    public static Expense reconstitute(UUID id, UUID userId, UUID categoryId, Money amount, String description,
+                                       LocalDate dueDate, ExpenseType type, ExpenseStatus status, LocalDateTime paidAt) {
+        Expense expense = new Expense(id, userId, categoryId, amount, description, dueDate, type);
+        expense.status = status != null ? status : ExpenseStatus.PENDING;
+        expense.paidAt = paidAt;
+        return expense;
     }
 
     public void markAsPaid(LocalDateTime paymentDate) {
@@ -36,6 +49,14 @@ public class Expense {
         }
         this.status = ExpenseStatus.PAID;
         this.paidAt = paymentDate != null ? paymentDate : LocalDateTime.now();
+    }
+
+    public boolean isPaid() {
+        return this.status == ExpenseStatus.PAID;
+    }
+
+    public boolean isOwnedBy(UUID candidateUserId) {
+        return this.userId.equals(candidateUserId);
     }
 
     // Getters

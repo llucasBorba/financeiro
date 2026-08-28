@@ -1,1 +1,19 @@
-services: {}
+services:
+  postgres:
+    image: 'postgres:16-alpine'
+    environment:
+      POSTGRES_DB: financeiro
+      POSTGRES_USER: financeiro
+      POSTGRES_PASSWORD: financeiro
+    ports:
+      - '5432:5432'
+    healthcheck:
+      test: [ 'CMD-SHELL', 'pg_isready -U financeiro -d financeiro' ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+volumes:
+  postgres-data:
