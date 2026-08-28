@@ -9,8 +9,15 @@ public class Money {
     private final String currency;
 
     public Money(BigDecimal amount, String currency) {
-        this.amount = amount;
+        this.amount = Objects.requireNonNull(amount, "O valor é obrigatório.");
+        if (amount.signum() < 0) {
+            throw new IllegalArgumentException("O valor não pode ser negativo.");
+        }
         this.currency = currency != null ? currency : "BRL";
+    }
+
+    public static Money zero(String currency) {
+        return new Money(BigDecimal.ZERO, currency);
     }
 
     public Money add(Money other) {
@@ -26,7 +33,12 @@ public class Money {
         return new Money(this.amount.subtract(other.amount), this.currency);
     }
 
+    public boolean isZero() {
+        return this.amount.signum() == 0;
+    }
+
     private void validateCurrency(Money other) {
+        Objects.requireNonNull(other, "O valor da operação é obrigatório.");
         if (!this.currency.equals(other.currency)) {
             throw new IllegalArgumentException("Moedas diferentes não podem ser operadas juntas.");
         }
@@ -50,8 +62,11 @@ public class Money {
 
     @Override
     public int hashCode() {
-        return Objects.hash(amount, currency);
+        return Objects.hash(amount.stripTrailingZeros(), currency);
+    }
+
+    @Override
+    public String toString() {
+        return currency + " " + amount;
     }
 }
-
-

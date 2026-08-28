@@ -8,6 +8,8 @@ import br.com.gastos.financeiro.infrastructure.database.entity.ExpenseJpaEntity;
 
 public class ExpenseMapper {
 
+    private ExpenseMapper() {}
+
     // Converte do Core (Domain) -> JPA (Database)
     public static ExpenseJpaEntity toJpaEntity(Expense domain) {
         if (domain == null) return null;
@@ -31,23 +33,17 @@ public class ExpenseMapper {
         if (entity == null) return null;
 
         Money amount = new Money(entity.getAmount(), entity.getCurrency());
-        ExpenseType type = ExpenseType.valueOf(entity.getType());
 
-        Expense expense = new Expense(
+        return Expense.reconstitute(
                 entity.getId(),
                 entity.getUserId(),
                 entity.getCategoryId(),
                 amount,
                 entity.getDescription(),
                 entity.getDueDate(),
-                type
+                ExpenseType.valueOf(entity.getType()),
+                ExpenseStatus.valueOf(entity.getStatus()),
+                entity.getPaidAt()
         );
-
-        // Se no banco o status já estiver marcado como PAID, atualiza o modelo de domínio
-        if (ExpenseStatus.PAID.name().equals(entity.getStatus())) {
-            expense.markAsPaid(entity.getPaidAt());
-        }
-
-        return expense;
     }
 }
