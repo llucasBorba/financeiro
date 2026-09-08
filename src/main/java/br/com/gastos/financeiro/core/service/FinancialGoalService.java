@@ -1,6 +1,5 @@
 package br.com.gastos.financeiro.core.service;
 
-import br.com.gastos.financeiro.core.exception.BusinessException;
 import br.com.gastos.financeiro.core.exception.ResourceNotFoundException;
 import br.com.gastos.financeiro.core.model.FinancialGoal;
 import br.com.gastos.financeiro.core.model.Money;
@@ -53,8 +52,10 @@ public class FinancialGoalService implements CreateGoalUseCase, DepositToGoalUse
         FinancialGoal goal = goalRepository.findById(goalId)
                 .orElseThrow(() -> new ResourceNotFoundException("Meta financeira não encontrada com o ID: " + goalId));
 
+        // Ver ExpenseService#findById: "não encontrado" em vez de "acesso negado", para a rota
+        // não virar um oráculo que confirma a existência de metas de outras pessoas.
         if (!goal.isOwnedBy(userId)) {
-            throw new BusinessException("Acesso negado: a meta não pertence ao usuário informado.");
+            throw new ResourceNotFoundException("Meta financeira não encontrada com o ID: " + goalId);
         }
 
         return goal;
