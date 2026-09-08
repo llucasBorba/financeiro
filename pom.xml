@@ -39,6 +39,29 @@
 			<version>3.0.2</version>
 		</dependency>
 
+		<!--
+			Migracoes de banco versionadas. O flyway-core nao conhece nenhum banco especifico:
+			desde o Flyway 10 cada dialeto vem num artefato proprio. Precisamos do modulo do
+			Postgres (producao/dev) e do H2 (testes).
+		-->
+		<!--
+			No Spring Boot 4 cada integracao tem seu proprio modulo de autoconfiguracao
+			(spring-boot-jpa, spring-boot-security, ...). So o flyway-core nao basta: sem
+			este artefato o Flyway fica no classpath mas ninguem o executa na subida.
+		-->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-flyway</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.flywaydb</groupId>
+			<artifactId>flyway-core</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.flywaydb</groupId>
+			<artifactId>flyway-database-postgresql</artifactId>
+		</dependency>
+
 		<dependency>
 			<groupId>org.postgresql</groupId>
 			<artifactId>postgresql</artifactId>
