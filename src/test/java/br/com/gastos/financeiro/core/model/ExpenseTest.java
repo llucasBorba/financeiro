@@ -1,7 +1,6 @@
 package br.com.gastos.financeiro.core.model;
 
 import br.com.gastos.financeiro.core.model.enums.ExpenseStatus;
-import br.com.gastos.financeiro.core.model.enums.ExpenseType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -20,10 +19,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ExpenseTest {
 
     private static final UUID USER_ID = UUID.randomUUID();
+    private static final UUID CATEGORY_ID = UUID.randomUUID();
 
     private Expense novaDespesa() {
         return new Expense(null, USER_ID, UUID.randomUUID(), new Money(new BigDecimal("199.90"), "BRL"),
-                "Internet", LocalDate.of(2026, 3, 10), ExpenseType.FIXED);
+                "Internet", LocalDate.of(2026, 3, 10));
     }
 
     @Test
@@ -44,11 +44,13 @@ class ExpenseTest {
         LocalDate dueDate = LocalDate.of(2026, 3, 10);
 
         assertThrows(NullPointerException.class,
-                () -> new Expense(null, null, null, amount, "x", dueDate, ExpenseType.FIXED));
+                () -> new Expense(null, null, CATEGORY_ID, amount, "x", dueDate));
         assertThrows(NullPointerException.class,
-                () -> new Expense(null, USER_ID, null, null, "x", dueDate, ExpenseType.FIXED));
+                () -> new Expense(null, USER_ID, CATEGORY_ID, null, "x", dueDate));
         assertThrows(NullPointerException.class,
-                () -> new Expense(null, USER_ID, null, amount, "x", null, ExpenseType.FIXED));
+                () -> new Expense(null, USER_ID, CATEGORY_ID, amount, "x", null));
+        assertThrows(NullPointerException.class,
+                () -> new Expense(null, USER_ID, null, amount, "x", dueDate));
     }
 
     @Test
@@ -87,9 +89,9 @@ class ExpenseTest {
     void reconstitutePreservesPaidState() {
         LocalDateTime pagamento = LocalDateTime.of(2026, 1, 5, 8, 0);
 
-        Expense expense = Expense.reconstitute(UUID.randomUUID(), USER_ID, null,
+        Expense expense = Expense.reconstitute(UUID.randomUUID(), USER_ID, UUID.randomUUID(),
                 new Money(BigDecimal.TEN, "BRL"), "Luz", LocalDate.of(2026, 1, 10),
-                ExpenseType.VARIABLE, ExpenseStatus.PAID, pagamento);
+                ExpenseStatus.PAID, pagamento, null);
 
         assertTrue(expense.isPaid());
         assertEquals(pagamento, expense.getPaidAt());

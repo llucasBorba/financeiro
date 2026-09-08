@@ -1,9 +1,12 @@
 package br.com.gastos.financeiro.infrastructure.web;
 
+import br.com.gastos.financeiro.core.exception.AuthenticationException;
 import br.com.gastos.financeiro.core.exception.BusinessException;
 import br.com.gastos.financeiro.core.exception.ResourceNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -50,6 +53,46 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     public ProblemDetail handleIllegalArgument(IllegalArgumentException ex) {
         return problem(HttpStatus.BAD_REQUEST, "Requisição inválida", ex.getMessage());
+    }
+
+    /**
+     * Duas requisições tentaram alterar o mesmo registro ao mesmo tempo e a coluna
+     * {@code version} barrou a segunda.
+     *
+     * <p>Não é erro de servidor (500): o pedido era válido, apenas chegou com uma leitura
+     * desatualizada. 409 comunica exatamente isso e o cliente pode simplesmente repetir a
+     * chamada. Uma evolução possível é a própria aplicação tentar de novo automaticamente
+     * (ex.: Spring Retry), já que aporte e baixa de despesa são operações seguras de repetir.
+     */
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ProblemDetail handleOptimisticLocking(OptimisticLockingFailureException ex) {
+        log.warn("Conflito de concorrência ao gravar o registro", ex);
+        return problem(HttpStatus.CONFLICT, "Conflito de concorrência",
+                "O registro foi alterado por outra operação. Consulte os dados atualizados e tente de novo.");
+    }
+
+    /**
+     * Credencial ausente, inválida ou expirada.
+     *
+     * <p>Cobre tanto a exceção do domínio quanto a do Spring Security (token malformado, sem
+     * assinatura válida, vencido). A mensagem devolvida é sempre genérica: detalhar qual parte
+     * do token falhou só ajudaria quem está tentando forjar um.
+     */
+    @ExceptionHandler({AuthenticationException.class,
+            org.springframework.security.core.AuthenticationException.class})
+    public ProblemDetail handleAuthentication(Exception ex) {
+        log.debug("Falha de autenticação", ex);
+        return problem(HttpStatus.UNAUTHORIZED, "Não autenticado",
+                ex instanceof AuthenticationException domainEx
+                        ? domainEx.getMessage()
+                        : "Credenciais ausentes ou inválidas.");
+    }
+
+    /** Autenticado, mas sem permissão para a operação. */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ProblemDetail handleAccessDenied(AccessDeniedException ex) {
+        return problem(HttpStatus.FORBIDDEN, "Acesso negado",
+                "Você não tem permissão para executar esta operação.");
     }
 
     @ExceptionHandler(Exception.class)

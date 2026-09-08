@@ -8,6 +8,7 @@ import br.com.gastos.financeiro.infrastructure.database.repository.SpringDataExp
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -21,9 +22,20 @@ public class ExpenseRepositoryAdapter implements ExpenseRepositoryPort {
         this.jpaRepository = jpaRepository;
     }
 
+    /**
+     * Grava a despesa reaproveitando a linha existente, quando houver.
+     *
+     * <p>O {@code findById} carrega a entidade gerenciada (e com ela a versão lida do banco)
+     * para que o Hibernate consiga checar a concorrência no UPDATE. Dentro de uma transação
+     * essa busca costuma ser acerto no cache de primeiro nível, sem ida extra ao banco —
+     * e mesmo quando vai, é o mesmo SELECT que o {@code merge()} já fazia por baixo dos panos.
+     */
     @Override
     public Expense save(Expense expense) {
-        ExpenseJpaEntity saved = jpaRepository.save(ExpenseMapper.toJpaEntity(expense));
+        ExpenseJpaEntity entity = jpaRepository.findById(expense.getId())
+                .orElseGet(ExpenseJpaEntity::new);
+
+        ExpenseJpaEntity saved = jpaRepository.save(ExpenseMapper.applyTo(expense, entity));
         return ExpenseMapper.toDomain(saved);
     }
 
@@ -44,6 +56,25 @@ public class ExpenseRepositoryAdapter implements ExpenseRepositoryPort {
         return jpaRepository.findByUserIdAndDueDateBetween(userId, startDate, endDate).stream()
                 .map(ExpenseMapper::toDomain)
                 .toList();
+    }
+
+    @Override
+    public List<Expense> findByUserIdAndPaidAtBetween(UUID userId, LocalDateTime from, LocalDateTime to) {
+        return jpaRepository.findByUserIdAndPaidAtBetween(userId, from, to).stream()
+                .map(ExpenseMapper::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<Expense> findByRecurringExpenseId(UUID recurringExpenseId) {
+        return jpaRepository.findByRecurringExpenseId(recurringExpenseId).stream()
+                .map(ExpenseMapper::toDomain)
+                .toList();
+    }
+
+    @Override
+    public long countByCategoryId(UUID categoryId) {
+        return jpaRepository.countByCategoryId(categoryId);
     }
 
     @Override

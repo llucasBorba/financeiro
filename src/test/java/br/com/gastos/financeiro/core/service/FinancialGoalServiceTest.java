@@ -72,8 +72,9 @@ class FinancialGoalServiceTest {
         FinancialGoal goal = criarMeta();
         DepositCommand deOutro = new DepositCommand(goal.getId(), OUTRO_USUARIO, new BigDecimal("50.00"), "BRL");
 
-        assertThrows(BusinessException.class, () -> service.execute(deOutro));
-        assertThrows(BusinessException.class, () -> service.findById(goal.getId(), OUTRO_USUARIO));
+        // Ver ExpenseServiceTest: posse violada responde "não encontrado", não "acesso negado".
+        assertThrows(ResourceNotFoundException.class, () -> service.execute(deOutro));
+        assertThrows(ResourceNotFoundException.class, () -> service.findById(goal.getId(), OUTRO_USUARIO));
     }
 
     @Test

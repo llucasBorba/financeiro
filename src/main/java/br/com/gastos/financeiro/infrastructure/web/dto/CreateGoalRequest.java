@@ -1,6 +1,7 @@
 package br.com.gastos.financeiro.infrastructure.web.dto;
 
 import br.com.gastos.financeiro.core.ports.ingoing.CreateGoalUseCase.CreateGoalCommand;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -12,9 +13,7 @@ import java.util.UUID;
 
 public record CreateGoalRequest(
 
-        @NotNull(message = "O usuário é obrigatório.")
-        UUID userId,
-
+        @Schema(description = "Nome da meta.", example = "Reserva de emergência")
         @NotBlank(message = "O título da meta é obrigatório.")
         @Size(max = 120, message = "O título deve ter no máximo 120 caracteres.")
         String title,
@@ -23,12 +22,13 @@ public record CreateGoalRequest(
         @DecimalMin(value = "0.01", message = "O valor alvo deve ser maior que zero.")
         BigDecimal targetAmount,
 
+        @Schema(description = "Código ISO 4217. Omitido, assume BRL.", example = "BRL", defaultValue = "BRL")
         @Size(min = 3, max = 3, message = "A moeda deve ter 3 letras (ex.: BRL).")
         String currency,
 
         LocalDate targetDate
 ) {
-    public CreateGoalCommand toCommand() {
+    public CreateGoalCommand toCommand(UUID userId) {
         return new CreateGoalCommand(userId, title, targetAmount, currency, targetDate);
     }
 }

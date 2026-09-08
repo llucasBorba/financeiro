@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -14,4 +15,10 @@ public interface SpringDataExpenseRepository extends JpaRepository<ExpenseJpaEnt
     List<ExpenseJpaEntity> findByUserId(UUID userId);
 
     List<ExpenseJpaEntity> findByUserIdAndDueDateBetween(UUID userId, LocalDate startDate, LocalDate endDate);
+
+    List<ExpenseJpaEntity> findByUserIdAndPaidAtBetween(UUID userId, LocalDateTime from, LocalDateTime to);
+
+    List<ExpenseJpaEntity> findByRecurringExpenseId(UUID recurringExpenseId);
+
+    long countByCategoryId(UUID categoryId);
 }

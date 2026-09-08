@@ -1,24 +1,23 @@
 package br.com.gastos.financeiro.infrastructure.web;
 
+import br.com.gastos.financeiro.support.AuthTestClient;
+import br.com.gastos.financeiro.support.AuthTestClient.Session;
 import com.jayway.jsonpath.JsonPath;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
-
-import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/**
- * Exercita a API de metas de ponta a ponta, incluindo a persistência do saldo acumulado.
- */
 @SpringBootTest
 @AutoConfigureMockMvc
 class FinancialGoalApiIntegrationTest {
@@ -26,23 +25,29 @@ class FinancialGoalApiIntegrationTest {
     @Autowired
     private MockMvc mockMvc;
 
-    private String criarMeta(UUID userId) throws Exception {
-        String payload = """
-                {
-                  "userId": "%s",
-                  "title": "Reserva de emergência",
-                  "targetAmount": 10000.00,
-                  "currency": "BRL",
-                  "targetDate": "2027-01-01"
-                }
-                """.formatted(userId);
+    private AuthTestClient auth;
 
+    @BeforeEach
+    void setUp() {
+        auth = new AuthTestClient(mockMvc);
+    }
+
+    private String criarMeta(Session session) throws Exception {
         String body = mockMvc.perform(post("/api/goals")
+                        .header(HttpHeaders.AUTHORIZATION, session.bearer())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(payload))
+                        .content("""
+                                {
+                                  "title": "Reserva de emergência",
+                                  "targetAmount": 10000.00,
+                                  "currency": "BRL",
+                                  "targetDate": "2027-01-01"
+                                }
+                                """))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.currentAmount").value(0))
                 .andExpect(jsonPath("$.achieved").value(false))
+                .andExpect(jsonPath("$.userId").value(session.userId().toString()))
                 .andReturn().getResponse().getContentAsString();
 
         return JsonPath.read(body, "$.id");
@@ -51,25 +56,26 @@ class FinancialGoalApiIntegrationTest {
     @Test
     @DisplayName("acumula aportes e marca a meta como atingida")
     void depositsAccumulateAndPersist() throws Exception {
-        UUID userId = UUID.randomUUID();
-        String goalId = criarMeta(userId);
+        Session session = auth.newUser();
+        String goalId = criarMeta(session);
 
         mockMvc.perform(post("/api/goals/{id}/deposits", goalId)
+                        .header(HttpHeaders.AUTHORIZATION, session.bearer())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"userId\":\"%s\",\"amount\":4000.00,\"currency\":\"BRL\"}".formatted(userId)))
+                        .content("{\"amount\":4000.00,\"currency\":\"BRL\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.currentAmount").value(4000.00))
                 .andExpect(jsonPath("$.achieved").value(false));
 
         mockMvc.perform(post("/api/goals/{id}/deposits", goalId)
+                        .header(HttpHeaders.AUTHORIZATION, session.bearer())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"userId\":\"%s\",\"amount\":6000.00,\"currency\":\"BRL\"}".formatted(userId)))
+                        .content("{\"amount\":6000.00,\"currency\":\"BRL\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.currentAmount").value(10000.00))
                 .andExpect(jsonPath("$.achieved").value(true));
 
-        // Relê do banco: o saldo acumulado sobrevive ao ciclo de persistência
-        mockMvc.perform(get("/api/goals/{id}", goalId).param("userId", userId.toString()))
+        mockMvc.perform(get("/api/goals/{id}", goalId).header(HttpHeaders.AUTHORIZATION, session.bearer()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.currentAmount").value(10000.00))
                 .andExpect(jsonPath("$.achieved").value(true));
@@ -78,27 +84,36 @@ class FinancialGoalApiIntegrationTest {
     @Test
     @DisplayName("recusa aporte em moeda diferente da meta")
     void rejectsCurrencyMismatch() throws Exception {
-        UUID userId = UUID.randomUUID();
-        String goalId = criarMeta(userId);
+        Session session = auth.newUser();
+        String goalId = criarMeta(session);
 
         mockMvc.perform(post("/api/goals/{id}/deposits", goalId)
+                        .header(HttpHeaders.AUTHORIZATION, session.bearer())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"userId\":\"%s\",\"amount\":100.00,\"currency\":\"USD\"}".formatted(userId)))
+                        .content("{\"amount\":100.00,\"currency\":\"USD\"}"))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
     @DisplayName("lista apenas as metas do próprio usuário")
     void listsOnlyOwnGoals() throws Exception {
-        UUID userId = UUID.randomUUID();
-        criarMeta(userId);
+        Session dono = auth.newUser();
+        Session outro = auth.newUser();
+        criarMeta(dono);
 
-        mockMvc.perform(get("/api/goals").param("userId", userId.toString()))
+        mockMvc.perform(get("/api/goals").header(HttpHeaders.AUTHORIZATION, dono.bearer()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1));
 
-        mockMvc.perform(get("/api/goals").param("userId", UUID.randomUUID().toString()))
+        mockMvc.perform(get("/api/goals").header(HttpHeaders.AUTHORIZATION, outro.bearer()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    @DisplayName("recusa acesso sem token")
+    void requiresAuthentication() throws Exception {
+        mockMvc.perform(get("/api/goals"))
+                .andExpect(status().isUnauthorized());
     }
 }

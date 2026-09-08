@@ -4,6 +4,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -33,6 +34,20 @@ public class FinancialGoalJpaEntity {
 
     @Column(name = "target_date")
     private LocalDate targetDate;
+
+    /**
+     * Controle de concorrência otimista.
+     *
+     * <p>O Hibernate lê esta coluna junto com a linha e, no UPDATE, gera
+     * {@code ... WHERE id = ? AND version = ?} incrementando o valor. Se outra transação
+     * gravou a mesma linha nesse meio-tempo a versão já mudou, o UPDATE não acerta nenhuma
+     * linha e o Hibernate lança OptimisticLockException em vez de sobrescrever o dado alheio.
+     *
+     * <p>Precisa ser {@code Long} (e não {@code long}): o Spring Data usa "version == null"
+     * para decidir entre INSERT e UPDATE, e um primitivo nunca seria nulo.
+     */
+    @Version
+    private Long version;
 
     public FinancialGoalJpaEntity() {}
 
@@ -67,4 +82,7 @@ public class FinancialGoalJpaEntity {
 
     public LocalDate getTargetDate() { return targetDate; }
     public void setTargetDate(LocalDate targetDate) { this.targetDate = targetDate; }
+
+    /** Sem setter de propósito: quem controla a versão é o Hibernate, nunca o código de aplicação. */
+    public Long getVersion() { return version; }
 }

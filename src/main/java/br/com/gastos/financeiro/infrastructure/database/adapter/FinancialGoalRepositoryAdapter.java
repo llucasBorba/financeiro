@@ -20,9 +20,13 @@ public class FinancialGoalRepositoryAdapter implements FinancialGoalRepositoryPo
         this.jpaRepository = jpaRepository;
     }
 
+    /** Ver {@code ExpenseRepositoryAdapter#save} para o motivo de carregar antes de gravar. */
     @Override
     public FinancialGoal save(FinancialGoal goal) {
-        FinancialGoalJpaEntity saved = jpaRepository.save(FinancialGoalMapper.toJpaEntity(goal));
+        FinancialGoalJpaEntity entity = jpaRepository.findById(goal.getId())
+                .orElseGet(FinancialGoalJpaEntity::new);
+
+        FinancialGoalJpaEntity saved = jpaRepository.save(FinancialGoalMapper.applyTo(goal, entity));
         return FinancialGoalMapper.toDomain(saved);
     }
 

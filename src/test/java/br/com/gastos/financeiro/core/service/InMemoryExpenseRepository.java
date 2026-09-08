@@ -4,6 +4,7 @@ import br.com.gastos.financeiro.core.model.Expense;
 import br.com.gastos.financeiro.core.ports.outgoing.ExpenseRepositoryPort;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -48,6 +49,29 @@ class InMemoryExpenseRepository implements ExpenseRepositoryPort {
             }
         }
         return result;
+    }
+
+    @Override
+    public List<Expense> findByUserIdAndPaidAtBetween(UUID userId, LocalDateTime from, LocalDateTime to) {
+        return storage.values().stream()
+                .filter(e -> e.getUserId().equals(userId))
+                .filter(e -> e.getPaidAt() != null)
+                .filter(e -> !e.getPaidAt().isBefore(from) && !e.getPaidAt().isAfter(to))
+                .toList();
+    }
+
+    @Override
+    public List<Expense> findByRecurringExpenseId(UUID recurringExpenseId) {
+        return storage.values().stream()
+                .filter(e -> recurringExpenseId.equals(e.getRecurringExpenseId()))
+                .toList();
+    }
+
+    @Override
+    public long countByCategoryId(UUID categoryId) {
+        return storage.values().stream()
+                .filter(e -> categoryId.equals(e.getCategoryId()))
+                .count();
     }
 
     @Override

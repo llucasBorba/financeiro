@@ -35,27 +35,29 @@ public class ExpenseJpaEntity {
     private LocalDateTime paidAt;
 
     @Column(length = 20, nullable = false)
-    private String type; // FIXED ou VARIABLE
-
-    @Column(length = 20, nullable = false)
     private String status; // PENDING ou PAID
+
+    /**
+     * Controle de concorrência otimista.
+     *
+     * <p>O Hibernate lê esta coluna junto com a linha e, no UPDATE, gera
+     * {@code ... WHERE id = ? AND version = ?} incrementando o valor. Se outra transação
+     * gravou a mesma linha nesse meio-tempo a versão já mudou, o UPDATE não acerta nenhuma
+     * linha e o Hibernate lança OptimisticLockException em vez de sobrescrever o dado alheio.
+     *
+     * <p>Precisa ser {@code Long} (e não {@code long}): o Spring Data usa "version == null"
+     * para decidir entre INSERT e UPDATE, e um primitivo nunca seria nulo.
+     */
+    @Version
+    private Long version;
+
+    /** Modelo de recorrência que gerou esta despesa. Nulo = lançamento avulso. */
+    @Column(name = "recurring_expense_id")
+    private UUID recurringExpenseId;
 
 
     public ExpenseJpaEntity() {}
 
-    public ExpenseJpaEntity(UUID id, UUID userId, UUID categoryId, BigDecimal amount, String currency,
-                            String description, LocalDate dueDate, LocalDateTime paidAt, String type, String status) {
-        this.id = id;
-        this.userId = userId;
-        this.categoryId = categoryId;
-        this.amount = amount;
-        this.currency = currency;
-        this.description = description;
-        this.dueDate = dueDate;
-        this.paidAt = paidAt;
-        this.type = type;
-        this.status = status;
-    }
 
 
     public UUID getId() { return id; }
@@ -82,9 +84,12 @@ public class ExpenseJpaEntity {
     public LocalDateTime getPaidAt() { return paidAt; }
     public void setPaidAt(LocalDateTime paidAt) { this.paidAt = paidAt; }
 
-    public String getType() { return type; }
-    public void setType(String type) { this.type = type; }
-
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+
+    public UUID getRecurringExpenseId() { return recurringExpenseId; }
+    public void setRecurringExpenseId(UUID recurringExpenseId) { this.recurringExpenseId = recurringExpenseId; }
+
+    /** Sem setter de propósito: quem controla a versão é o Hibernate, nunca o código de aplicação. */
+    public Long getVersion() { return version; }
 }

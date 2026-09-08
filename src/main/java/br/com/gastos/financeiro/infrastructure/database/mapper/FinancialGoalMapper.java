@@ -8,19 +8,22 @@ public class FinancialGoalMapper {
 
     private FinancialGoalMapper() {}
 
-    // Converte do Core (Domain) -> JPA (Database)
-    public static FinancialGoalJpaEntity toJpaEntity(FinancialGoal domain) {
+    /**
+     * Copia o estado do domínio para uma entidade JPA — nova ou já carregada do banco.
+     * Ver {@link ExpenseMapper#applyTo} para o motivo de receber a entidade de destino.
+     */
+    public static FinancialGoalJpaEntity applyTo(FinancialGoal domain, FinancialGoalJpaEntity entity) {
         if (domain == null) return null;
 
-        return new FinancialGoalJpaEntity(
-                domain.getId(),
-                domain.getUserId(),
-                domain.getTitle(),
-                domain.getTargetAmount().getAmount(),
-                domain.getCurrentAmount().getAmount(),
-                domain.getTargetAmount().getCurrency(),
-                domain.getTargetDate()
-        );
+        entity.setId(domain.getId());
+        entity.setUserId(domain.getUserId());
+        entity.setTitle(domain.getTitle());
+        entity.setTargetAmount(domain.getTargetAmount().getAmount());
+        entity.setCurrentAmount(domain.getCurrentAmount().getAmount());
+        entity.setCurrency(domain.getTargetAmount().getCurrency());
+        entity.setTargetDate(domain.getTargetDate());
+
+        return entity;
     }
 
     // Converte do JPA (Database) -> Core (Domain)
