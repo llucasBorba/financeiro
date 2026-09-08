@@ -13,4 +13,13 @@ public interface FindExpenseUseCase {
     List<Expense> listByUser(UUID userId);
 
     List<Expense> listByUserAndPeriod(UUID userId, LocalDate startDate, LocalDate endDate);
+
+    /**
+     * Ocorrências geradas por uma recorrência — responde "o que já gerei dessa regra?".
+     *
+     * <p>{@code startDate} e {@code endDate} são opcionais e compõem o filtro. Recorrência de
+     * outro usuário devolve lista vazia, não erro: nem confirma nem nega que aquele id existe.
+     */
+    List<Expense> listByUserAndRecurrence(UUID userId, UUID recurringExpenseId,
+                                          LocalDate startDate, LocalDate endDate);
 }

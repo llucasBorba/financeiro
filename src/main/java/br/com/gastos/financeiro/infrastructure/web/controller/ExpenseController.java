@@ -11,6 +11,7 @@ import br.com.gastos.financeiro.core.ports.ingoing.UndoExpensePaymentUseCase;
 import br.com.gastos.financeiro.core.ports.ingoing.UndoExpensePaymentUseCase.UndoPaymentCommand;
 import br.com.gastos.financeiro.core.ports.ingoing.UpdateExpenseUseCase;
 import br.com.gastos.financeiro.infrastructure.identity.CurrentUser;
+import io.swagger.v3.oas.annotations.media.Schema;
 import br.com.gastos.financeiro.infrastructure.web.dto.CreateExpenseRequest;
 import br.com.gastos.financeiro.infrastructure.web.dto.ExpenseResponse;
 import br.com.gastos.financeiro.infrastructure.web.dto.MarkAsPaidRequest;
@@ -121,18 +122,30 @@ public class ExpenseController {
     }
 
     /**
-     * Lista as despesas do usuário. Informando {@code startDate} e {@code endDate}
-     * a busca é restrita às despesas com vencimento dentro do período.
+     * Lista as despesas do usuário — avulsas e geradas por recorrência, juntas.
+     *
+     * <p>A listagem não separa por origem de propósito: quem pergunta "o que devo em março?"
+     * quer a lista do mês, não duas listas para mesclar. Quando a origem importar, use
+     * {@code recurringExpenseId} para restringir a uma regra específica.
      */
     @GetMapping
     public ResponseEntity<List<ExpenseResponse>> list(
             @CurrentUser UUID userId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false)
+            @Schema(description = "Restringe às ocorrências geradas por esta recorrência "
+                    + "(GET /api/recurring-expenses). Combina com startDate e endDate.")
+            UUID recurringExpenseId) {
 
-        List<Expense> expenses = (startDate != null && endDate != null)
-                ? findExpense.listByUserAndPeriod(userId, startDate, endDate)
-                : findExpense.listByUser(userId);
+        List<Expense> expenses;
+        if (recurringExpenseId != null) {
+            expenses = findExpense.listByUserAndRecurrence(userId, recurringExpenseId, startDate, endDate);
+        } else if (startDate != null && endDate != null) {
+            expenses = findExpense.listByUserAndPeriod(userId, startDate, endDate);
+        } else {
+            expenses = findExpense.listByUser(userId);
+        }
 
         // Uma consulta só para os nomes, em vez de uma por despesa (N+1). São ~8 categorias
         // por usuário, então carregar todas e cruzar em memória é mais barato que qualquer join.

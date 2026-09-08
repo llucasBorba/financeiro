@@ -265,4 +265,58 @@ class RecurringExpenseApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(12));
     }
+
+    @Test
+    @DisplayName("filtra a listagem de despesas pelas ocorrências de uma recorrência")
+    void filtersExpensesByRecurrence() throws Exception {
+        Session s = auth.newUser();
+        String moradia = categoria(s, "Moradia");
+        String id = criarAluguel(s, moradia, "1500.00", 10, "2027-01", "2027-03");
+
+        // uma despesa avulsa no meio do período
+        mockMvc.perform(post("/api/expenses")
+                        .header(HttpHeaders.AUTHORIZATION, s.bearer())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "categoryId": "%s", "amount": 19.01, "description": "Bobs",
+                                  "dueDate": "2027-01-08" }
+                                """.formatted(moradia)))
+                .andExpect(status().isCreated());
+
+        // sem filtro: tudo junto — 3 geradas + 1 avulsa
+        mockMvc.perform(get("/api/expenses")
+                        .param("startDate", "2027-01-01").param("endDate", "2027-12-31")
+                        .header(HttpHeaders.AUTHORIZATION, s.bearer()))
+                .andExpect(jsonPath("$.length()").value(4));
+
+        // com filtro: só as da recorrência
+        mockMvc.perform(get("/api/expenses")
+                        .param("recurringExpenseId", id)
+                        .header(HttpHeaders.AUTHORIZATION, s.bearer()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(3))
+                .andExpect(jsonPath("$[*].recurringExpenseId",
+                        org.hamcrest.Matchers.everyItem(org.hamcrest.Matchers.is(id))));
+
+        // e compõe com o período
+        mockMvc.perform(get("/api/expenses")
+                        .param("recurringExpenseId", id)
+                        .param("startDate", "2027-01-01").param("endDate", "2027-02-28")
+                        .header(HttpHeaders.AUTHORIZATION, s.bearer()))
+                .andExpect(jsonPath("$.length()").value(2));
+    }
+
+    @Test
+    @DisplayName("o filtro não expõe ocorrências de recorrência alheia")
+    void filterDoesNotLeakOtherUsersOccurrences() throws Exception {
+        Session dono = auth.newUser();
+        Session intruso = auth.newUser();
+        String id = criarAluguel(dono, categoria(dono, "Moradia"), "1500.00", 10, "2027-01", "2027-03");
+
+        mockMvc.perform(get("/api/expenses")
+                        .param("recurringExpenseId", id)
+                        .header(HttpHeaders.AUTHORIZATION, intruso.bearer()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+    }
 }

@@ -89,4 +89,11 @@ public class TransactionalExpenseService implements CreateExpenseUseCase, Update
     public List<Expense> listByUserAndPeriod(UUID userId, LocalDate startDate, LocalDate endDate) {
         return delegate.listByUserAndPeriod(userId, startDate, endDate);
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Expense> listByUserAndRecurrence(UUID userId, UUID recurringExpenseId,
+                                                 LocalDate startDate, LocalDate endDate) {
+        return delegate.listByUserAndRecurrence(userId, recurringExpenseId, startDate, endDate);
+    }
 }

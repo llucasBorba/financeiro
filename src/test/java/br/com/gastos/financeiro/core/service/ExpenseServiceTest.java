@@ -4,6 +4,7 @@ import br.com.gastos.financeiro.core.exception.BusinessException;
 import br.com.gastos.financeiro.core.exception.ResourceNotFoundException;
 import br.com.gastos.financeiro.core.model.Category;
 import br.com.gastos.financeiro.core.model.Expense;
+import br.com.gastos.financeiro.core.model.Money;
 import br.com.gastos.financeiro.core.model.enums.ExpenseStatus;
 import br.com.gastos.financeiro.core.ports.ingoing.CreateExpenseUseCase.CreateExpenseCommand;
 import br.com.gastos.financeiro.core.ports.ingoing.MarkExpenseAsPaidUseCase.MarkAsPaidCommand;
@@ -32,12 +33,14 @@ class ExpenseServiceTest {
 
     private ExpenseService service;
     private InMemoryCategoryRepository categoryRepository;
+    private InMemoryExpenseRepository expenseRepository;
     private Category categoria;
 
     @BeforeEach
     void setUp() {
         categoryRepository = new InMemoryCategoryRepository();
-        service = new ExpenseService(new InMemoryExpenseRepository(), categoryRepository);
+        expenseRepository = new InMemoryExpenseRepository();
+        service = new ExpenseService(expenseRepository, categoryRepository);
         // Desde a Etapa 2 o categoryId precisa apontar para uma categoria real do usuário —
         // um UUID inventado é recusado, que é exatamente o comportamento desejado.
         categoria = categoryRepository.save(Category.create(USER_ID, "Casa"));
@@ -304,5 +307,57 @@ class ExpenseServiceTest {
 
         assertThrows(ResourceNotFoundException.class, () -> service.execute(deOutro));
         assertTrue(service.findById(despesa.getId(), USER_ID).isPaid());
+    }
+
+    // ---------- filtro por recorrência ----------
+
+    @Test
+    @DisplayName("filtra as ocorrências de uma recorrência, ignorando as avulsas")
+    void filtersByRecurrence() {
+        UUID recorrencia = UUID.randomUUID();
+        criarDespesa(LocalDate.of(2026, 5, 10));   // avulsa
+        Expense geradaMaio = new Expense(null, USER_ID, categoria.getId(),
+                new Money(new BigDecimal("1500.00"), "BRL"), "Aluguel",
+                LocalDate.of(2026, 5, 10), recorrencia);
+        Expense geradaJunho = new Expense(null, USER_ID, categoria.getId(),
+                new Money(new BigDecimal("1500.00"), "BRL"), "Aluguel",
+                LocalDate.of(2026, 6, 10), recorrencia);
+        expenseRepository.save(geradaMaio);
+        expenseRepository.save(geradaJunho);
+
+        List<Expense> daRecorrencia = service.listByUserAndRecurrence(USER_ID, recorrencia, null, null);
+
+        assertEquals(2, daRecorrencia.size());
+        assertTrue(daRecorrencia.stream().allMatch(Expense::isRecurring));
+        // a listagem geral continua trazendo tudo
+        assertEquals(3, service.listByUser(USER_ID).size());
+    }
+
+    @Test
+    @DisplayName("o filtro por recorrência compõe com o período")
+    void recurrenceFilterComposesWithPeriod() {
+        UUID recorrencia = UUID.randomUUID();
+        for (int mes : new int[]{5, 6, 7}) {
+            expenseRepository.save(new Expense(null, USER_ID, categoria.getId(),
+                    new Money(new BigDecimal("1500.00"), "BRL"), "Aluguel",
+                    LocalDate.of(2026, mes, 10), recorrencia));
+        }
+
+        List<Expense> maioJunho = service.listByUserAndRecurrence(USER_ID, recorrencia,
+                LocalDate.of(2026, 5, 1), LocalDate.of(2026, 6, 30));
+
+        assertEquals(2, maioJunho.size());
+    }
+
+    @Test
+    @DisplayName("recorrência de outro usuário devolve lista vazia, não erro")
+    void recurrenceOfAnotherUserYieldsNothing() {
+        UUID recorrenciaAlheia = UUID.randomUUID();
+        expenseRepository.save(new Expense(null, OUTRO_USUARIO, categoria.getId(),
+                new Money(new BigDecimal("1500.00"), "BRL"), "Aluguel alheio",
+                LocalDate.of(2026, 5, 10), recorrenciaAlheia));
+
+        // Lista vazia em vez de 404: nem confirma nem nega que aquele id existe.
+        assertTrue(service.listByUserAndRecurrence(USER_ID, recorrenciaAlheia, null, null).isEmpty());
     }
 }

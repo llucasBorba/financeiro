@@ -157,4 +157,20 @@ public class ExpenseService implements CreateExpenseUseCase, UpdateExpenseUseCas
         }
         return expenseRepository.findByUserIdAndDueDateBetween(userId, startDate, endDate);
     }
+
+    @Override
+    public List<Expense> listByUserAndRecurrence(UUID userId, UUID recurringExpenseId,
+                                                 LocalDate startDate, LocalDate endDate) {
+        if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
+            throw new BusinessException("A data inicial não pode ser posterior à data final.");
+        }
+
+        // A consulta por recorrência não filtra por dono — a checagem de posse é feita aqui.
+        // Sem ela, informar o id da recorrência de outra pessoa exporia as despesas dela.
+        return expenseRepository.findByRecurringExpenseId(recurringExpenseId).stream()
+                .filter(despesa -> despesa.isOwnedBy(userId))
+                .filter(despesa -> startDate == null || !despesa.getDueDate().isBefore(startDate))
+                .filter(despesa -> endDate == null || !despesa.getDueDate().isAfter(endDate))
+                .toList();
+    }
 }
