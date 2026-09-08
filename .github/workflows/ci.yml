@@ -1,0 +1,58 @@
+# Integração contínua.
+#
+# Roda a suíte numa máquina virgem a cada push e a cada pull request. O valor
+# está no "virgem": o runner só tem o que está versionado no repositório. Se um
+# arquivo não foi commitado, ou se algo só funciona por causa de configuração
+# local, é aqui que aparece.
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+# Cancela execuções antigas do mesmo branch quando chega um push novo — não
+# adianta esperar o resultado de um commit que já foi substituído.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Build e testes
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Clona o repositório
+        uses: actions/checkout@v4
+
+      - name: Instala o JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'          # bate com <java.version> do pom.xml
+          distribution: 'temurin'
+          # Guarda o ~/.m2 entre execuções. Sem isso, cada build rebaixa todas
+          # as dependências do zero.
+          cache: 'maven'
+
+      # Não precisa de Docker nem de um Postgres aqui: a suíte roda contra H2 em
+      # memória. Também não precisa de segredos — os testes usam o profile 'dev',
+      # que traz o segredo de assinatura do application-dev.properties.
+      #
+      # 'verify' em vez de 'test' porque vai até o empacotamento: prova que os
+      # testes passam E que o JAR é construível.
+      # '--batch-mode' desliga as barras de progresso, que num log de CI viram
+      # milhares de linhas de ruído.
+      - name: Compila, testa e empacota
+        run: ./mvnw --batch-mode --no-transfer-progress verify
+
+      # Só roda quando algo falha. Sem isto, um teste vermelho no CI exige
+      # reproduzir localmente para ver o relatório completo.
+      - name: Publica os relatórios de teste (quando falha)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: target/surefire-reports/
+          retention-days: 7
