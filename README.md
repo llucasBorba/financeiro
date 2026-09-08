@@ -67,9 +67,9 @@ No Swagger, clique em **Authorize** e cole o `accessToken` — as rotas passam a
 
 | Variável | Padrão | |
 |---|---|---|
-| `JWT_SECRET` | **nenhum** | Mínimo 32 bytes. **Sem ela a aplicação não sobe** — segredo com padrão é segredo público. Em desenvolvimento vem de `application-dev.properties`. |
+| `JWT_SECRET` | **nenhum** | Mínimo 32 bytes. **Fora do profile `dev` a aplicação recusa subir sem ela.** Em desenvolvimento, quando ausente, um segredo aleatório é gerado a cada inicialização — os tokens deixam de valer a cada reinício. Defina a variável se quiser que sobrevivam. |
 | `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | Postgres local | |
-| `SPRING_PROFILES_ACTIVE` | `dev` | Em produção, `prod`. |
+| `SPRING_PROFILES_ACTIVE` | `dev` | **Defina como `prod` no deploy.** O padrão `dev` existe por conveniência local; esquecê-lo em produção roda a aplicação em modo de desenvolvimento. |
 | `JWT_EXPIRATION` | `PT1H` | Duração ISO-8601. |
 | `JPA_DDL_AUTO` | `validate` | O esquema pertence ao Flyway. |
 | `FLYWAY_BASELINE` | `false` | `true` só ao adotar Flyway num banco que já tem tabelas. |
@@ -131,6 +131,21 @@ aplicação que não sobe.
   Índice parcial (`CREATE INDEX ... WHERE`) é sintaxe só do Postgres e quebra a suíte.
 - **Números de migração só crescem.** Não "reserve" um número para depois: o Flyway
   recusa uma versão menor que a já aplicada.
+
+## Segredos
+
+**Nenhum segredo é versionado, e nenhum deve ser.** O `JWT_SECRET` vem do ambiente; em
+desenvolvimento, sem ele, um valor aleatório é gerado a cada inicialização.
+
+Já houve um deslize aqui: um segredo de assinatura literal ficou em
+`application-dev.properties` e o GitGuardian sinalizou. Como o profile padrão é `dev`, um
+deploy que esquecesse `SPRING_PROFILES_ACTIVE=prod` assinaria tokens com um valor público —
+qualquer pessoa que lesse o repositório poderia forjar um token para qualquer usuário. O valor
+foi retirado e não é mais usado em lugar nenhum; ele permanece no histórico do git, e é
+inofensivo justamente por ter deixado de valer.
+
+A senha do Postgres no `compose.yaml` é de um contêiner local que só escuta em `localhost` —
+não é credencial de produção.
 
 ## Limitações conhecidas
 
