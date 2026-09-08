@@ -67,4 +67,41 @@ class MoneyTest {
     void detectZero() {
         assertTrue(Money.zero("BRL").isZero());
     }
+
+    @Test
+    @DisplayName("normaliza o código da moeda para caixa alta")
+    void normalizesCurrencyCase() {
+        assertEquals("BRL", new Money(BigDecimal.TEN, "brl").getCurrency());
+        assertEquals("USD", new Money(BigDecimal.TEN, " usd ").getCurrency());
+    }
+
+    @Test
+    @DisplayName("opera valores da mesma moeda escrita em caixas diferentes")
+    void treatsCurrencyCaseInsensitively() {
+        Money meta = new Money(new BigDecimal("100.00"), "brl");
+        Money aporte = new Money(new BigDecimal("50.00"), "BRL");
+
+        assertEquals(0, new BigDecimal("150.00").compareTo(meta.add(aporte).getAmount()));
+    }
+
+    @Test
+    @DisplayName("rejeita código de moeda inexistente")
+    void rejectsUnknownCurrency() {
+        assertThrows(IllegalArgumentException.class, () -> new Money(BigDecimal.TEN, "XYZ"));
+        assertThrows(IllegalArgumentException.class, () -> new Money(BigDecimal.TEN, "reais"));
+    }
+
+    @Test
+    @DisplayName("guarda toda quantia com duas casas decimais")
+    void normalizesScale() {
+        assertEquals("10.50", new Money(new BigDecimal("10.5"), "BRL").getAmount().toPlainString());
+        assertEquals("10.00", new Money(BigDecimal.TEN, "BRL").getAmount().toPlainString());
+        assertEquals("0.00", Money.zero("BRL").getAmount().toPlainString());
+    }
+
+    @Test
+    @DisplayName("rejeita valor com mais casas decimais do que o banco guarda")
+    void rejectsExcessivePrecision() {
+        assertThrows(IllegalArgumentException.class, () -> new Money(new BigDecimal("250.755"), "BRL"));
+    }
 }
