@@ -231,4 +231,38 @@ class RecurringExpenseApiIntegrationTest {
     void requiresAuthentication() throws Exception {
         mockMvc.perform(get("/api/recurring-expenses")).andExpect(status().isUnauthorized());
     }
+
+    @Test
+    @DisplayName("geração com alvo absurdo devolve 400 e a aplicação segue de pé")
+    void absurdGenerationTargetIsRejected() throws Exception {
+        Session s = auth.newUser();
+        String id = criarAluguel(s, categoria(s, "Moradia"), "1500.00", 10, "2027-01", null);
+
+        // Antes da guarda no domínio, esta chamada montava uma lista sem teto e derrubava a JVM
+        // — para todos os usuários, não só para quem chamou.
+        mockMvc.perform(post("/api/recurring-expenses/{id}/generate", id)
+                        .param("through", "2200-12")
+                        .header(HttpHeaders.AUTHORIZATION, s.bearer()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Requisição inválida"));
+
+        // a aplicação continua atendendo normalmente
+        mockMvc.perform(get("/api/recurring-expenses/{id}", id)
+                        .header(HttpHeaders.AUTHORIZATION, s.bearer()))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("estender dentro do teto continua funcionando")
+    void reasonableGenerationStillWorks() throws Exception {
+        Session s = auth.newUser();
+        String id = criarAluguel(s, categoria(s, "Moradia"), "1500.00", 10, "2027-01", null);
+
+        // criação já gerou 12; estender para 24 meses cria os 12 restantes
+        mockMvc.perform(post("/api/recurring-expenses/{id}/generate", id)
+                        .param("through", "2028-12")
+                        .header(HttpHeaders.AUTHORIZATION, s.bearer()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(12));
+    }
 }

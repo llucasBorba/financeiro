@@ -2,6 +2,7 @@ package br.com.gastos.financeiro.core.model;
 
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -22,6 +23,27 @@ public class RecurringExpense {
     /** Quantos meses gerar de uma vez quando não há fim previsto. */
     public static final int DEFAULT_HORIZON_MONTHS = 12;
 
+    /**
+     * Teto de meses que uma única geração pode abranger.
+     *
+     * <p>Sem este limite, {@code monthsThrough} montava uma lista do mês inicial até o alvo sem
+     * teto algum. Como {@code YearMonth} vai até o ano 999999999, uma requisição autenticada
+     * qualquer podia pedir ~12 bilhões de meses e derrubar a JVM — para todos os usuários, não
+     * só para quem chamou. Vinte anos cobre com folga qualquer recorrência real e mantém o
+     * número de INSERTs de uma transação em faixa segura.
+     */
+    public static final int MAX_GENERATION_SPAN_MONTHS = 240;
+
+    /**
+     * Mês mais distante aceito em qualquer campo.
+     *
+     * <p>Complementa o teto acima: ele limita o <em>tamanho</em> da geração, este limita a
+     * <em>posição</em>. Sem ele, um {@code startMonth} no ano 999999999 criaria lançamentos-lixo
+     * e faria {@link #defaultHorizon()} estourar {@code DateTimeException} ao somar meses além
+     * do máximo representável — devolvendo 500 onde o certo é 400.
+     */
+    private static final YearMonth LATEST_ACCEPTED_MONTH = YearMonth.of(2200, 12);
+
     public static final int MAX_DESCRIPTION_LENGTH = 255;
 
     private final UUID id;
@@ -38,7 +60,7 @@ public class RecurringExpense {
                              int dayOfMonth, YearMonth startMonth, YearMonth endMonth, boolean active) {
         this.id = id != null ? id : UUID.randomUUID();
         this.userId = Objects.requireNonNull(userId, "O usuário é obrigatório.");
-        this.startMonth = Objects.requireNonNull(startMonth, "O mês inicial é obrigatório.");
+        this.startMonth = requireWithinRange(startMonth, "O mês inicial");
         this.active = active;
 
         applyChanges(categoryId, amount, description, dayOfMonth, endMonth);
@@ -73,8 +95,11 @@ public class RecurringExpense {
         }
         this.dayOfMonth = dayOfMonth;
 
-        if (endMonth != null && endMonth.isBefore(startMonth)) {
-            throw new IllegalArgumentException("O mês final não pode ser anterior ao inicial.");
+        if (endMonth != null) {
+            requireWithinRange(endMonth, "O mês final");
+            if (endMonth.isBefore(startMonth)) {
+                throw new IllegalArgumentException("O mês final não pode ser anterior ao inicial.");
+            }
         }
         this.endMonth = endMonth;
     }
@@ -103,18 +128,50 @@ public class RecurringExpense {
      * o que vier primeiro.
      */
     public List<YearMonth> monthsThrough(YearMonth target) {
+        Objects.requireNonNull(target, "O mês alvo é obrigatório.");
+        requireWithinRange(target, "O mês alvo");
+
         YearMonth ultimo = (endMonth != null && endMonth.isBefore(target)) ? endMonth : target;
 
-        List<YearMonth> meses = new ArrayList<>();
+        // Alvo anterior ao início: não há nada a gerar.
+        if (ultimo.isBefore(startMonth)) {
+            return List.of();
+        }
+
+        // Conta ANTES de montar a lista. Descobrir o tamanho iterando seria descobrir tarde
+        // demais — é exatamente assim que o laço sem teto derrubava a aplicação.
+        long span = ChronoUnit.MONTHS.between(startMonth, ultimo) + 1;
+        if (span > MAX_GENERATION_SPAN_MONTHS) {
+            throw new IllegalArgumentException(
+                    "Uma geração cobre no máximo " + MAX_GENERATION_SPAN_MONTHS + " meses; "
+                            + "de " + startMonth + " até " + ultimo + " seriam " + span + ".");
+        }
+
+        List<YearMonth> meses = new ArrayList<>((int) span);
         for (YearMonth mes = startMonth; !mes.isAfter(ultimo); mes = mes.plusMonths(1)) {
             meses.add(mes);
         }
         return meses;
     }
 
+    private static YearMonth requireWithinRange(YearMonth month, String campo) {
+        Objects.requireNonNull(month, campo + " é obrigatório.");
+        if (month.isAfter(LATEST_ACCEPTED_MONTH)) {
+            throw new IllegalArgumentException(
+                    campo + " não pode ser posterior a " + LATEST_ACCEPTED_MONTH + ".");
+        }
+        return month;
+    }
+
     /** Até onde gerar por padrão, quando ninguém informa um alvo. */
     public YearMonth defaultHorizon() {
         YearMonth padrao = startMonth.plusMonths(DEFAULT_HORIZON_MONTHS - 1L);
+
+        // Não pode passar do limite aceito: uma recorrência começando no último mês válido
+        // teria horizonte padrão fora da faixa, e a geração recusaria o próprio padrão dela.
+        if (padrao.isAfter(LATEST_ACCEPTED_MONTH)) {
+            padrao = LATEST_ACCEPTED_MONTH;
+        }
         return (endMonth != null && endMonth.isBefore(padrao)) ? endMonth : padrao;
     }
 

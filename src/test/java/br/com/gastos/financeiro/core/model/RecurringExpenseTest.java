@@ -124,4 +124,62 @@ class RecurringExpenseTest {
 
         assertEquals(List.of(YearMonth.of(2026, 11), YearMonth.of(2026, 12), YearMonth.of(2027, 1)), meses);
     }
+
+    // ---------- proteção contra geração sem teto ----------
+
+    @Test
+    @DisplayName("recusa geração que abrangeria mais que o teto de meses")
+    void rejectsGenerationBeyondSpanLimit() {
+        RecurringExpense semFim = aluguel(10, YearMonth.of(2026, 1), null);
+
+        // Antes desta guarda, o laço montava a lista até o alvo sem teto algum. Como YearMonth
+        // vai até o ano 999999999, uma requisição autenticada qualquer derrubava a JVM.
+        assertThrows(IllegalArgumentException.class,
+                () -> semFim.monthsThrough(YearMonth.of(2100, 12)));
+        assertThrows(IllegalArgumentException.class,
+                () -> semFim.monthsThrough(YearMonth.of(2200, 12)));
+    }
+
+    @Test
+    @DisplayName("aceita exatamente o teto e recusa um mês além")
+    void spanLimitBoundary() {
+        YearMonth inicio = YearMonth.of(2026, 1);
+        RecurringExpense semFim = aluguel(10, inicio, null);
+
+        YearMonth noLimite = inicio.plusMonths(RecurringExpense.MAX_GENERATION_SPAN_MONTHS - 1L);
+        assertEquals(RecurringExpense.MAX_GENERATION_SPAN_MONTHS, semFim.monthsThrough(noLimite).size());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> semFim.monthsThrough(noLimite.plusMonths(1)));
+    }
+
+    @Test
+    @DisplayName("recusa meses absurdamente distantes em qualquer campo")
+    void rejectsAbsurdlyDistantMonths() {
+        YearMonth distante = YearMonth.of(999999999, 12);
+
+        assertThrows(IllegalArgumentException.class, () -> aluguel(10, distante, null));
+        assertThrows(IllegalArgumentException.class,
+                () -> aluguel(10, YearMonth.of(2026, 1), distante));
+        assertThrows(IllegalArgumentException.class,
+                () -> aluguel(10, YearMonth.of(2026, 1), null).monthsThrough(distante));
+    }
+
+    @Test
+    @DisplayName("alvo anterior ao início não gera nada, em vez de estourar")
+    void targetBeforeStartYieldsNothing() {
+        RecurringExpense modelo = aluguel(10, YearMonth.of(2026, 10), null);
+
+        assertTrue(modelo.monthsThrough(YearMonth.of(2026, 5)).isEmpty());
+    }
+
+    @Test
+    @DisplayName("o horizonte padrão nunca ultrapassa o limite aceito")
+    void defaultHorizonStaysWithinRange() {
+        RecurringExpense noLimite = aluguel(10, YearMonth.of(2200, 12), null);
+
+        // Sem a limitação, o padrão cairia em 2201-11 e a própria geração o recusaria.
+        assertEquals(YearMonth.of(2200, 12), noLimite.defaultHorizon());
+        assertEquals(1, noLimite.monthsThrough(noLimite.defaultHorizon()).size());
+    }
 }
