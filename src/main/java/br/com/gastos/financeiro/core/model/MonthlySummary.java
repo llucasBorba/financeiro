@@ -36,22 +36,27 @@ public class MonthlySummary {
     private final Money received;
     private final Money paid;
     private final Money pending;
+    private final Money overdue;
     private final List<CategoryTotal> byCategory;
     private final int receivedCount;
     private final int paidCount;
     private final int pendingCount;
+    private final int overdueCount;
 
     private MonthlySummary(YearMonth month, String currency, Money received, Money paid, Money pending,
-                           List<CategoryTotal> byCategory, int receivedCount, int paidCount, int pendingCount) {
+                           Money overdue, List<CategoryTotal> byCategory,
+                           int receivedCount, int paidCount, int pendingCount, int overdueCount) {
         this.month = month;
         this.currency = currency;
         this.received = received;
         this.paid = paid;
         this.pending = pending;
+        this.overdue = overdue;
         this.byCategory = List.copyOf(byCategory);
         this.receivedCount = receivedCount;
         this.paidCount = paidCount;
         this.pendingCount = pendingCount;
+        this.overdueCount = overdueCount;
     }
 
     /**
@@ -96,9 +101,15 @@ public class MonthlySummary {
         Money paidTotal = sum(paid.stream().map(Expense::getAmount).toList(), currency);
         Money pendingTotal = sum(pending.stream().map(Expense::getAmount).toList(), currency);
 
-        return new MonthlySummary(month, currency, received, paidTotal, pendingTotal,
+        // Do total pendente, o que já passou do vencimento é a parte que exige ação hoje.
+        List<Expense> vencidas = pending.stream()
+                .filter(e -> YearMonth.from(e.getDueDate()).isBefore(month))
+                .toList();
+        Money overdueTotal = sum(vencidas.stream().map(Expense::getAmount).toList(), currency);
+
+        return new MonthlySummary(month, currency, received, paidTotal, pendingTotal, overdueTotal,
                 breakdown(paid, paidTotal, currency, categoryNames),
-                incomes.size(), paid.size(), pending.size());
+                incomes.size(), paid.size(), pending.size(), vencidas.size());
     }
 
     /**
@@ -169,8 +180,12 @@ public class MonthlySummary {
     public Money getReceived() { return received; }
     public Money getPaid() { return paid; }
     public Money getPending() { return pending; }
+
+    /** Parte do "a pagar" que já passou do vencimento — a dívida acumulada de meses anteriores. */
+    public Money getOverdue() { return overdue; }
     public List<CategoryTotal> getByCategory() { return byCategory; }
     public int getReceivedCount() { return receivedCount; }
     public int getPaidCount() { return paidCount; }
     public int getPendingCount() { return pendingCount; }
+    public int getOverdueCount() { return overdueCount; }
 }

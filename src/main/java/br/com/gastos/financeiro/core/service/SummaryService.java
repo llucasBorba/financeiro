@@ -55,9 +55,12 @@ public class SummaryService implements GetMonthlySummaryUseCase {
         List<Expense> pagas = expenseRepository.findByUserIdAndPaidAtBetween(
                 userId, primeiroDia.atStartOfDay(), ultimoDia.atTime(LocalTime.MAX));
 
-        // "A pagar" é pelo VENCIMENTO, e só o que continua pendente agora. Quando a conta for
-        // paga ela some daqui e reaparece como saída do mês em que foi quitada.
-        List<Expense> aPagar = expenseRepository.findByUserIdAndDueDateBetween(userId, primeiroDia, ultimoDia)
+        // "A pagar" é pelo VENCIMENTO, e inclui o que venceu ANTES e segue pendente: uma conta
+        // de agosto não paga continua sendo dívida em setembro. Buscar só o intervalo do mês
+        // faria ela sumir do radar justamente quando vira problema.
+        //
+        // Quando a conta for paga ela some daqui e reaparece como saída do mês em que foi quitada.
+        List<Expense> aPagar = expenseRepository.findByUserIdAndDueDateUpTo(userId, ultimoDia)
                 .stream()
                 .filter(despesa -> !despesa.isPaid())
                 .toList();

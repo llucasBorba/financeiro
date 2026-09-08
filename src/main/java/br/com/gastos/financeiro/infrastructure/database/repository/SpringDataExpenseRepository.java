@@ -18,6 +18,8 @@ public interface SpringDataExpenseRepository extends JpaRepository<ExpenseJpaEnt
 
     List<ExpenseJpaEntity> findByUserIdAndPaidAtBetween(UUID userId, LocalDateTime from, LocalDateTime to);
 
+    List<ExpenseJpaEntity> findByUserIdAndDueDateLessThanEqual(UUID userId, LocalDate limit);
+
     List<ExpenseJpaEntity> findByRecurringExpenseId(UUID recurringExpenseId);
 
     long countByCategoryId(UUID categoryId);

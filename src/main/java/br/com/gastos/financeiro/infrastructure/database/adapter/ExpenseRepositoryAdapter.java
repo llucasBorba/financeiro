@@ -66,6 +66,13 @@ public class ExpenseRepositoryAdapter implements ExpenseRepositoryPort {
     }
 
     @Override
+    public List<Expense> findByUserIdAndDueDateUpTo(UUID userId, LocalDate limit) {
+        return jpaRepository.findByUserIdAndDueDateLessThanEqual(userId, limit).stream()
+                .map(ExpenseMapper::toDomain)
+                .toList();
+    }
+
+    @Override
     public List<Expense> findByRecurringExpenseId(UUID recurringExpenseId) {
         return jpaRepository.findByRecurringExpenseId(recurringExpenseId).stream()
                 .map(ExpenseMapper::toDomain)

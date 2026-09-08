@@ -19,6 +19,15 @@ public interface ExpenseRepositoryPort {
     List<Expense> findByUserIdAndDueDateBetween(UUID userId, LocalDate startDate, LocalDate endDate);
 
     /**
+     * Todas as despesas que vencem até {@code limit}, inclusive.
+     *
+     * <p>Base do "a pagar" do resumo: uma conta de agosto não paga continua sendo dívida em
+     * setembro, então ela precisa aparecer também nos meses seguintes — e não sumir do radar
+     * como aconteceria se a busca fosse só pelo intervalo do mês.
+     */
+    List<Expense> findByUserIdAndDueDateUpTo(UUID userId, LocalDate limit);
+
+    /**
      * Despesas cujo PAGAMENTO caiu no intervalo — base do "saiu" no resumo mensal.
      *
      * <p>Diferente de {@link #findByUserIdAndDueDateBetween}: aqui o critério é quando o

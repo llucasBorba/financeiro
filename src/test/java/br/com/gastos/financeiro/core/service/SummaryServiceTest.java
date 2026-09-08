@@ -196,4 +196,49 @@ class SummaryServiceTest {
         assertTrue(deOutro.get(0).getReceived().isZero());
         assertTrue(deOutro.get(0).getPaid().isZero());
     }
+
+    // ---------- contas vencidas acumulam ----------
+
+    @Test
+    @DisplayName("conta de agosto não paga aparece no 'a pagar' de setembro")
+    void unpaidBillFromPreviousMonthCarriesForward() {
+        despesaPendente(moradia, "250.00", LocalDate.of(2026, 8, 5));   // venceu em agosto
+        despesaPendente(alimentacao, "800.00", LocalDate.of(2026, 9, 25)); // vence em setembro
+
+        MonthlySummary resumo = setembro();
+
+        // Some do radar seria justamente quando ela vira problema.
+        assertEquals("1050.00", resumo.getPending().getAmount().toPlainString());
+        assertEquals(2, resumo.getPendingCount());
+
+        // E a parte já vencida vem separada, porque é a acionável.
+        assertEquals("250.00", resumo.getOverdue().getAmount().toPlainString());
+        assertEquals(1, resumo.getOverdueCount());
+    }
+
+    @Test
+    @DisplayName("ao ser paga, a conta atrasada sai do 'a pagar' e entra na saída do mês do pagamento")
+    void payingLateMovesItToThePaymentMonth() {
+        // venceu em agosto, paga em setembro
+        despesaPaga(moradia, "250.00", LocalDate.of(2026, 8, 5), LocalDateTime.of(2026, 9, 3, 10, 0));
+
+        MonthlySummary resumo = setembro();
+
+        assertTrue(resumo.getPending().isZero(), "já foi paga, não é mais dívida");
+        assertTrue(resumo.getOverdue().isZero());
+        assertEquals("250.00", resumo.getPaid().getAmount().toPlainString());
+    }
+
+    @Test
+    @DisplayName("o saldo previsto desconta a dívida acumulada")
+    void projectedBalanceIncludesOverdue() {
+        receita("5000.00", LocalDate.of(2026, 9, 5));
+        despesaPendente(moradia, "250.00", LocalDate.of(2026, 8, 5));
+        despesaPendente(alimentacao, "800.00", LocalDate.of(2026, 9, 25));
+
+        MonthlySummary resumo = setembro();
+
+        assertEquals(0, new BigDecimal("5000.00").compareTo(resumo.balance()));
+        assertEquals(0, new BigDecimal("3950.00").compareTo(resumo.projectedBalance()));
+    }
 }

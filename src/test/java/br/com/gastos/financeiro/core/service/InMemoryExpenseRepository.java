@@ -61,6 +61,14 @@ class InMemoryExpenseRepository implements ExpenseRepositoryPort {
     }
 
     @Override
+    public List<Expense> findByUserIdAndDueDateUpTo(UUID userId, LocalDate limit) {
+        return storage.values().stream()
+                .filter(e -> e.getUserId().equals(userId))
+                .filter(e -> !e.getDueDate().isAfter(limit))
+                .toList();
+    }
+
+    @Override
     public List<Expense> findByRecurringExpenseId(UUID recurringExpenseId) {
         return storage.values().stream()
                 .filter(e -> recurringExpenseId.equals(e.getRecurringExpenseId()))

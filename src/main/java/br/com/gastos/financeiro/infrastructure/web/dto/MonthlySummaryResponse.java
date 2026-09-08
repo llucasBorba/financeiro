@@ -19,10 +19,14 @@ public record MonthlySummaryResponse(
         @Schema(description = "Despesas PAGAS no mês, independente de quando venceram.", example = "3200.00")
         BigDecimal paid,
 
-        @Schema(description = "Despesas que vencem no mês e continuam pendentes. "
-                + "Informativo: NÃO entra no saldo, porque o dinheiro ainda não saiu.",
-                example = "800.00")
+        @Schema(description = "Tudo que vence até o fim do mês e segue pendente, inclusive o que "
+                + "venceu antes. Informativo: NÃO entra no saldo, porque o dinheiro ainda não saiu.",
+                example = "1050.00")
         BigDecimal pending,
+
+        @Schema(description = "Parte do 'a pagar' que já passou do vencimento — a dívida "
+                + "acumulada de meses anteriores.", example = "250.00")
+        BigDecimal overdue,
 
         @Schema(description = "Entrou menos saiu. Pode ser negativo.", example = "2100.00")
         BigDecimal balance,
@@ -34,6 +38,7 @@ public record MonthlySummaryResponse(
         int receivedCount,
         int paidCount,
         int pendingCount,
+        int overdueCount,
 
         @Schema(description = "Onde o dinheiro foi — quebra do que foi PAGO, maior primeiro.")
         List<CategoryTotalResponse> byCategory
@@ -53,11 +58,13 @@ public record MonthlySummaryResponse(
                 summary.getReceived().getAmount(),
                 summary.getPaid().getAmount(),
                 summary.getPending().getAmount(),
+                summary.getOverdue().getAmount(),
                 summary.balance(),
                 summary.projectedBalance(),
                 summary.getReceivedCount(),
                 summary.getPaidCount(),
                 summary.getPendingCount(),
+                summary.getOverdueCount(),
                 summary.getByCategory().stream()
                         .map(c -> new CategoryTotalResponse(
                                 c.categoryId(), c.categoryName(), c.total().getAmount(), c.percentage()))
