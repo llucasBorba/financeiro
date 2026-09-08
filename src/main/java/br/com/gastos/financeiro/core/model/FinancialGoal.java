@@ -33,6 +33,30 @@ public class FinancialGoal {
         return goal;
     }
 
+    /**
+     * Corrige os dados da meta.
+     *
+     * <p>Não toca em {@code currentAmount}, pelo mesmo motivo que editar despesa não mexe no
+     * pagamento: o saldo acumulado é resultado de aportes, não um campo que se digita. Mudá-lo
+     * como efeito colateral de corrigir um título apagaria histórico.
+     *
+     * <p>A moeda do valor alvo precisa continuar sendo a do saldo já acumulado — senão a meta
+     * ficaria com R$ 4.000 guardados rumo a um alvo em dólares, e {@link #deposit(Money)}
+     * passaria a recusar todo aporte.
+     */
+    public void update(String title, Money targetAmount, LocalDate targetDate) {
+        Objects.requireNonNull(targetAmount, "O valor alvo é obrigatório.");
+
+        if (!targetAmount.getCurrency().equals(this.currentAmount.getCurrency())) {
+            throw new IllegalArgumentException(
+                    "A moeda da meta não pode mudar: já há " + this.currentAmount + " acumulado.");
+        }
+
+        this.title = Objects.requireNonNull(title, "O título da meta é obrigatório.");
+        this.targetAmount = targetAmount;
+        this.targetDate = targetDate;
+    }
+
     // Regra de negócio: adicionar aporte à meta
     public void deposit(Money contribution) {
         Objects.requireNonNull(contribution, "O valor do aporte é obrigatório.");

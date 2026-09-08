@@ -13,7 +13,9 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -115,5 +117,69 @@ class FinancialGoalApiIntegrationTest {
     void requiresAuthentication() throws Exception {
         mockMvc.perform(get("/api/goals"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("PUT corrige a meta e mantém o saldo acumulado")
+    void updateKeepsBalance() throws Exception {
+        Session session = auth.newUser();
+        String goalId = criarMeta(session);
+
+        mockMvc.perform(post("/api/goals/{id}/deposits", goalId)
+                .header(HttpHeaders.AUTHORIZATION, session.bearer())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"amount\":4000.00,\"currency\":\"BRL\"}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(put("/api/goals/{id}", goalId)
+                        .header(HttpHeaders.AUTHORIZATION, session.bearer())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "title": "Reserva maior", "targetAmount": 12000.00,
+                                  "currency": "BRL", "targetDate": "2027-06-01" }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Reserva maior"))
+                .andExpect(jsonPath("$.targetAmount").value(12000.00))
+                .andExpect(jsonPath("$.currentAmount").value(4000.00))   // aporte intacto
+                .andExpect(jsonPath("$.achieved").value(false));
+    }
+
+    @Test
+    @DisplayName("DELETE remove a meta")
+    void deleteRemovesGoal() throws Exception {
+        Session session = auth.newUser();
+        String goalId = criarMeta(session);
+
+        mockMvc.perform(delete("/api/goals/{id}", goalId)
+                        .header(HttpHeaders.AUTHORIZATION, session.bearer()))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/goals/{id}", goalId).header(HttpHeaders.AUTHORIZATION, session.bearer()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("outro usuário não edita nem apaga a meta alheia")
+    void otherUserCannotUpdateOrDelete() throws Exception {
+        Session dono = auth.newUser();
+        Session intruso = auth.newUser();
+        String goalId = criarMeta(dono);
+
+        mockMvc.perform(put("/api/goals/{id}", goalId)
+                        .header(HttpHeaders.AUTHORIZATION, intruso.bearer())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "title": "invadida", "targetAmount": 1.00, "currency": "BRL" }
+                                """))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(delete("/api/goals/{id}", goalId)
+                        .header(HttpHeaders.AUTHORIZATION, intruso.bearer()))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(get("/api/goals/{id}", goalId).header(HttpHeaders.AUTHORIZATION, dono.bearer()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Reserva de emergência"));
     }
 }

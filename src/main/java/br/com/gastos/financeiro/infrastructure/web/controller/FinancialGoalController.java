@@ -2,17 +2,22 @@ package br.com.gastos.financeiro.infrastructure.web.controller;
 
 import br.com.gastos.financeiro.core.model.FinancialGoal;
 import br.com.gastos.financeiro.core.ports.ingoing.CreateGoalUseCase;
+import br.com.gastos.financeiro.core.ports.ingoing.DeleteGoalUseCase;
 import br.com.gastos.financeiro.core.ports.ingoing.DepositToGoalUseCase;
 import br.com.gastos.financeiro.core.ports.ingoing.FindGoalUseCase;
+import br.com.gastos.financeiro.core.ports.ingoing.UpdateGoalUseCase;
 import br.com.gastos.financeiro.infrastructure.identity.CurrentUser;
 import br.com.gastos.financeiro.infrastructure.web.dto.CreateGoalRequest;
 import br.com.gastos.financeiro.infrastructure.web.dto.DepositRequest;
 import br.com.gastos.financeiro.infrastructure.web.dto.GoalResponse;
+import br.com.gastos.financeiro.infrastructure.web.dto.UpdateGoalRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -26,13 +31,19 @@ import java.util.UUID;
 public class FinancialGoalController {
 
     private final CreateGoalUseCase createGoal;
+    private final UpdateGoalUseCase updateGoal;
+    private final DeleteGoalUseCase deleteGoal;
     private final DepositToGoalUseCase depositToGoal;
     private final FindGoalUseCase findGoal;
 
     public FinancialGoalController(CreateGoalUseCase createGoal,
+                                   UpdateGoalUseCase updateGoal,
+                                   DeleteGoalUseCase deleteGoal,
                                    DepositToGoalUseCase depositToGoal,
                                    FindGoalUseCase findGoal) {
         this.createGoal = createGoal;
+        this.updateGoal = updateGoal;
+        this.deleteGoal = deleteGoal;
         this.depositToGoal = depositToGoal;
         this.findGoal = findGoal;
     }
@@ -44,6 +55,20 @@ public class FinancialGoalController {
         return ResponseEntity
                 .created(URI.create("/api/goals/" + goal.getId()))
                 .body(GoalResponse.from(goal));
+    }
+
+    /** Corrige título, valor alvo e prazo. O saldo acumulado não é afetado. */
+    @PutMapping("/{id}")
+    public ResponseEntity<GoalResponse> update(@CurrentUser UUID userId,
+                                               @PathVariable UUID id,
+                                               @Valid @RequestBody UpdateGoalRequest request) {
+        return ResponseEntity.ok(GoalResponse.from(updateGoal.execute(request.toCommand(id, userId))));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@CurrentUser UUID userId, @PathVariable UUID id) {
+        deleteGoal.execute(id, userId);
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{id}/deposits")

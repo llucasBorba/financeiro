@@ -4,15 +4,18 @@ import br.com.gastos.financeiro.core.exception.ResourceNotFoundException;
 import br.com.gastos.financeiro.core.model.FinancialGoal;
 import br.com.gastos.financeiro.core.model.Money;
 import br.com.gastos.financeiro.core.ports.ingoing.CreateGoalUseCase;
+import br.com.gastos.financeiro.core.ports.ingoing.DeleteGoalUseCase;
 import br.com.gastos.financeiro.core.ports.ingoing.DepositToGoalUseCase;
 import br.com.gastos.financeiro.core.ports.ingoing.FindGoalUseCase;
+import br.com.gastos.financeiro.core.ports.ingoing.UpdateGoalUseCase;
 import br.com.gastos.financeiro.core.ports.outgoing.FinancialGoalRepositoryPort;
 
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
-public class FinancialGoalService implements CreateGoalUseCase, DepositToGoalUseCase, FindGoalUseCase {
+public class FinancialGoalService implements CreateGoalUseCase, UpdateGoalUseCase,
+        DeleteGoalUseCase, DepositToGoalUseCase, FindGoalUseCase {
 
     private final FinancialGoalRepositoryPort goalRepository;
 
@@ -33,6 +36,24 @@ public class FinancialGoalService implements CreateGoalUseCase, DepositToGoalUse
         );
 
         return goalRepository.save(goal);
+    }
+
+    @Override
+    public FinancialGoal execute(UpdateGoalCommand command) {
+        // findById já valida a posse: meta de outro usuário sai como 404 daqui.
+        FinancialGoal goal = findById(command.goalId(), command.userId());
+
+        goal.update(command.title(),
+                new Money(command.targetAmount(), command.currency()),
+                command.targetDate());
+
+        return goalRepository.save(goal);
+    }
+
+    @Override
+    public void execute(UUID goalId, UUID userId) {
+        FinancialGoal goal = findById(goalId, userId);
+        goalRepository.deleteById(goal.getId());
     }
 
     @Override

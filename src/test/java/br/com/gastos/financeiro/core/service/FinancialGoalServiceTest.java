@@ -5,6 +5,7 @@ import br.com.gastos.financeiro.core.exception.ResourceNotFoundException;
 import br.com.gastos.financeiro.core.model.FinancialGoal;
 import br.com.gastos.financeiro.core.ports.ingoing.CreateGoalUseCase.CreateGoalCommand;
 import br.com.gastos.financeiro.core.ports.ingoing.DepositToGoalUseCase.DepositCommand;
+import br.com.gastos.financeiro.core.ports.ingoing.UpdateGoalUseCase.UpdateGoalCommand;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -92,5 +93,60 @@ class FinancialGoalServiceTest {
 
         assertEquals(1, service.listByUser(USER_ID).size());
         assertTrue(service.listByUser(OUTRO_USUARIO).isEmpty());
+    }
+
+    // ---------- editar e excluir ----------
+
+    @Test
+    @DisplayName("edita a meta sem tocar no saldo acumulado")
+    void updateKeepsAccumulatedBalance() {
+        FinancialGoal meta = criarMeta();
+        service.execute(new DepositCommand(meta.getId(), USER_ID, new BigDecimal("4000.00"), "BRL"));
+
+        FinancialGoal editada = service.execute(new UpdateGoalCommand(meta.getId(), USER_ID,
+                "Reserva maior", new BigDecimal("12000.00"), "BRL", LocalDate.of(2027, 6, 1)));
+
+        assertEquals("Reserva maior", editada.getTitle());
+        assertEquals(0, new BigDecimal("12000.00").compareTo(editada.getTargetAmount().getAmount()));
+        // o aporte continua lá: saldo é resultado de depósitos, não campo que se digita
+        assertEquals(0, new BigDecimal("4000.00").compareTo(editada.getCurrentAmount().getAmount()));
+        assertFalse(editada.isAchieved());
+    }
+
+    @Test
+    @DisplayName("recusa trocar a moeda de uma meta com saldo")
+    void refusesCurrencyChange() {
+        FinancialGoal meta = criarMeta();
+        service.execute(new DepositCommand(meta.getId(), USER_ID, new BigDecimal("100.00"), "BRL"));
+
+        UpdateGoalCommand emDolar = new UpdateGoalCommand(meta.getId(), USER_ID, "Reserva",
+                new BigDecimal("2000.00"), "USD", null);
+
+        // Senão a meta ficaria com R$ 100 guardados rumo a um alvo em dólares,
+        // e todo aporte seguinte seria recusado por moedas diferentes.
+        assertThrows(IllegalArgumentException.class, () -> service.execute(emDolar));
+    }
+
+    @Test
+    @DisplayName("apaga a meta")
+    void deletesGoal() {
+        FinancialGoal meta = criarMeta();
+
+        service.execute(meta.getId(), USER_ID);
+
+        assertThrows(ResourceNotFoundException.class, () -> service.findById(meta.getId(), USER_ID));
+        assertTrue(service.listByUser(USER_ID).isEmpty());
+    }
+
+    @Test
+    @DisplayName("outro usuário não edita nem apaga a meta alheia")
+    void isolatesUpdateAndDelete() {
+        FinancialGoal meta = criarMeta();
+        UpdateGoalCommand deOutro = new UpdateGoalCommand(meta.getId(), OUTRO_USUARIO, "invadida",
+                BigDecimal.TEN, "BRL", null);
+
+        assertThrows(ResourceNotFoundException.class, () -> service.execute(deOutro));
+        assertThrows(ResourceNotFoundException.class, () -> service.execute(meta.getId(), OUTRO_USUARIO));
+        assertEquals("Reserva de emergência", service.findById(meta.getId(), USER_ID).getTitle());
     }
 }
