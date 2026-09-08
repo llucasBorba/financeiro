@@ -63,4 +63,28 @@ class CurrentUserOpenApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$..parameters[?(@.name == 'X-User-Id')]").isEmpty());
     }
+
+    @Test
+    @DisplayName("toda rota publicada tem um resumo no contrato")
+    void everyOperationHasASummary() throws Exception {
+        String contrato = mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        com.jayway.jsonpath.DocumentContext doc = com.jayway.jsonpath.JsonPath.parse(contrato);
+        java.util.Map<String, java.util.Map<String, Object>> paths = doc.read("$.paths");
+
+        java.util.List<String> semResumo = new java.util.ArrayList<>();
+        paths.forEach((rota, verbos) -> verbos.forEach((verbo, operacao) -> {
+            Object resumo = ((java.util.Map<?, ?>) operacao).get("summary");
+            if (resumo == null || resumo.toString().isBlank()) {
+                semResumo.add(verbo.toUpperCase() + " " + rota);
+            }
+        }));
+
+        // Uma rota sem resumo aparece no Swagger como um verbo e um caminho, e nada mais —
+        // quem chega de fora precisa ler o código para saber o que ela faz.
+        org.junit.jupiter.api.Assertions.assertTrue(semResumo.isEmpty(),
+                "rotas sem summary: " + semResumo);
+    }
 }

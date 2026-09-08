@@ -11,6 +11,7 @@ import br.com.gastos.financeiro.infrastructure.web.dto.CreateGoalRequest;
 import br.com.gastos.financeiro.infrastructure.web.dto.DepositRequest;
 import br.com.gastos.financeiro.infrastructure.web.dto.GoalResponse;
 import br.com.gastos.financeiro.infrastructure.web.dto.UpdateGoalRequest;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -48,6 +49,7 @@ public class FinancialGoalController {
         this.findGoal = findGoal;
     }
 
+    @Operation(summary = "Cria uma meta financeira")
     @PostMapping
     public ResponseEntity<GoalResponse> create(@CurrentUser UUID userId,
                                                @Valid @RequestBody CreateGoalRequest request) {
@@ -58,6 +60,8 @@ public class FinancialGoalController {
     }
 
     /** Corrige título, valor alvo e prazo. O saldo acumulado não é afetado. */
+    @Operation(summary = "Corrige título, valor alvo e prazo da meta",
+            description = "Não toca no saldo acumulado: ele é resultado de aportes, não um campo que se digita.")
     @PutMapping("/{id}")
     public ResponseEntity<GoalResponse> update(@CurrentUser UUID userId,
                                                @PathVariable UUID id,
@@ -65,12 +69,15 @@ public class FinancialGoalController {
         return ResponseEntity.ok(GoalResponse.from(updateGoal.execute(request.toCommand(id, userId))));
     }
 
+    @Operation(summary = "Exclui a meta")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@CurrentUser UUID userId, @PathVariable UUID id) {
         deleteGoal.execute(id, userId);
         return ResponseEntity.noContent().build();
     }
 
+    @Operation(summary = "Registra um aporte na meta",
+            description = "O aporte precisa ser na mesma moeda da meta.")
     @PostMapping("/{id}/deposits")
     public ResponseEntity<GoalResponse> deposit(@CurrentUser UUID userId,
                                                 @PathVariable UUID id,
@@ -79,12 +86,14 @@ public class FinancialGoalController {
         return ResponseEntity.ok(GoalResponse.from(goal));
     }
 
+    @Operation(summary = "Consulta uma meta")
     @GetMapping("/{id}")
     public ResponseEntity<GoalResponse> findById(@CurrentUser UUID userId,
                                                  @PathVariable UUID id) {
         return ResponseEntity.ok(GoalResponse.from(findGoal.findById(id, userId)));
     }
 
+    @Operation(summary = "Lista as metas")
     @GetMapping
     public ResponseEntity<List<GoalResponse>> list(@CurrentUser UUID userId) {
         return ResponseEntity.ok(findGoal.listByUser(userId).stream().map(GoalResponse::from).toList());

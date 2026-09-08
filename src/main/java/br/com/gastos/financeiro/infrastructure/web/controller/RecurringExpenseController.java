@@ -117,11 +117,14 @@ public class RecurringExpenseController {
         return ResponseEntity.noContent().build();
     }
 
+    @Operation(summary = "Consulta um modelo de recorrência")
     @GetMapping("/{id}")
     public ResponseEntity<RecurringExpenseResponse> findById(@CurrentUser UUID userId, @PathVariable UUID id) {
         return ResponseEntity.ok(toResponse(findRecurring.findById(id, userId), userId));
     }
 
+    @Operation(summary = "Lista os modelos de recorrência",
+            description = "Só as regras. Os lançamentos que elas geraram estão em GET /api/expenses.")
     @GetMapping
     public ResponseEntity<List<RecurringExpenseResponse>> list(@CurrentUser UUID userId) {
         Map<UUID, String> nomes = categoryNames(userId);

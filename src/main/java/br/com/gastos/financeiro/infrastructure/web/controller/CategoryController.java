@@ -13,6 +13,7 @@ import br.com.gastos.financeiro.infrastructure.identity.CurrentUser;
 import br.com.gastos.financeiro.infrastructure.web.dto.CategoryNameRequest;
 import br.com.gastos.financeiro.infrastructure.web.dto.CategoryResponse;
 import br.com.gastos.financeiro.infrastructure.web.dto.ChangeCategoryStatusRequest;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -52,6 +53,8 @@ public class CategoryController {
         this.findCategory = findCategory;
     }
 
+    @Operation(summary = "Cria uma categoria de despesa",
+            description = "O nome é único entre as suas categorias, sem diferenciar maiúsculas.")
     @PostMapping
     public ResponseEntity<CategoryResponse> create(@CurrentUser UUID userId,
                                                    @Valid @RequestBody CategoryNameRequest request) {
@@ -62,6 +65,8 @@ public class CategoryController {
     }
 
     /** Por padrão devolve só as ativas — arquivadas não devem poluir um seletor. */
+    @Operation(summary = "Lista as categorias",
+            description = "Por padrão só as ativas — arquivadas não devem poluir um seletor.")
     @GetMapping
     public ResponseEntity<List<CategoryResponse>> list(
             @CurrentUser UUID userId,
@@ -72,12 +77,15 @@ public class CategoryController {
                 .toList());
     }
 
+    @Operation(summary = "Consulta uma categoria")
     @GetMapping("/{id}")
     public ResponseEntity<CategoryResponse> findById(@CurrentUser UUID userId, @PathVariable UUID id) {
         return ResponseEntity.ok(CategoryResponse.from(findCategory.findById(id, userId)));
     }
 
     /** Renomear é seguro: as despesas apontam para o id, não para o texto. */
+    @Operation(summary = "Renomeia a categoria",
+            description = "Seguro: as despesas apontam para o id, não para o texto, então todas passam a exibir o nome novo sem nenhuma reescrita em cascata.")
     @PutMapping("/{id}")
     public ResponseEntity<CategoryResponse> rename(@CurrentUser UUID userId,
                                                    @PathVariable UUID id,
@@ -87,6 +95,8 @@ public class CategoryController {
     }
 
     /** Arquivar/reativar. PATCH porque altera um aspecto do recurso, não o substitui. */
+    @Operation(summary = "Arquiva ou reativa a categoria",
+            description = "Arquivada some dos seletores e não aceita lançamento novo, mas o histórico segue intacto.")
     @PatchMapping("/{id}/active")
     public ResponseEntity<CategoryResponse> changeStatus(@CurrentUser UUID userId,
                                                          @PathVariable UUID id,
@@ -97,6 +107,8 @@ public class CategoryController {
     }
 
     /** Só remove categoria sem uso. Em uso, responde 409 sugerindo arquivar. */
+    @Operation(summary = "Exclui a categoria",
+            description = "Só remove categoria sem uso. Em uso, devolve 409 dizendo quantas despesas dependem dela — apagar destruiria a classificação do histórico. Nesse caso, arquive.")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@CurrentUser UUID userId, @PathVariable UUID id) {
         deleteCategory.execute(id, userId);

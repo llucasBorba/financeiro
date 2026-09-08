@@ -16,6 +16,7 @@ import br.com.gastos.financeiro.infrastructure.web.dto.CreateExpenseRequest;
 import br.com.gastos.financeiro.infrastructure.web.dto.ExpenseResponse;
 import br.com.gastos.financeiro.infrastructure.web.dto.MarkAsPaidRequest;
 import br.com.gastos.financeiro.infrastructure.web.dto.UpdateExpenseRequest;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -66,6 +67,8 @@ public class ExpenseController {
         this.findCategory = findCategory;
     }
 
+    @Operation(summary = "Registra uma despesa avulsa",
+            description = "Informando paidAt, ela já nasce PAGA — o caso da compra à vista, que não deveria exigir duas chamadas. Despesas que se repetem não são criadas aqui: use POST /api/recurring-expenses.")
     @PostMapping
     public ResponseEntity<ExpenseResponse> create(@CurrentUser UUID userId,
                                                   @Valid @RequestBody CreateExpenseRequest request) {
@@ -76,6 +79,8 @@ public class ExpenseController {
     }
 
     /** Substitui os dados editáveis. O estado de pagamento não é afetado. */
+    @Operation(summary = "Substitui os dados de uma despesa",
+            description = "Não altera o estado de pagamento nem a origem: corrigir um valor digitado errado não deve, como efeito colateral, marcar ou desmarcar um pagamento.")
     @PutMapping("/{id}")
     public ResponseEntity<ExpenseResponse> update(@CurrentUser UUID userId,
                                                   @PathVariable UUID id,
@@ -88,12 +93,15 @@ public class ExpenseController {
      * 204 No Content: a operação deu certo e não há corpo para devolver.
      * Apagar despesa de outro usuário responde 404, como qualquer acesso indevido.
      */
+    @Operation(summary = "Exclui uma despesa")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@CurrentUser UUID userId, @PathVariable UUID id) {
         deleteExpense.execute(id, userId);
         return ResponseEntity.noContent().build();
     }
 
+    @Operation(summary = "Marca a despesa como paga",
+            description = "Omitindo paymentDate, assume o momento atual. Pagar duas vezes devolve 409.")
     @PatchMapping("/{id}/payment")
     public ResponseEntity<ExpenseResponse> markAsPaid(@CurrentUser UUID userId,
                                                       @PathVariable UUID id,
@@ -108,6 +116,8 @@ public class ExpenseController {
      * <p>{@code DELETE} sobre o sub-recurso "payment": o que se remove é o pagamento, não a
      * despesa. Devolve a despesa atualizada em vez de 204, para o cliente ver o estado novo.
      */
+    @Operation(summary = "Desfaz um pagamento marcado por engano",
+            description = "Remove o pagamento, não a despesa: ela volta para 'a pagar' com o mesmo id.")
     @DeleteMapping("/{id}/payment")
     public ResponseEntity<ExpenseResponse> undoPayment(@CurrentUser UUID userId,
                                                        @PathVariable UUID id) {
@@ -115,6 +125,7 @@ public class ExpenseController {
         return ResponseEntity.ok(toResponse(expense, userId));
     }
 
+    @Operation(summary = "Consulta uma despesa")
     @GetMapping("/{id}")
     public ResponseEntity<ExpenseResponse> findById(@CurrentUser UUID userId,
                                                     @PathVariable UUID id) {
@@ -128,6 +139,8 @@ public class ExpenseController {
      * quer a lista do mês, não duas listas para mesclar. Quando a origem importar, use
      * {@code recurringExpenseId} para restringir a uma regra específica.
      */
+    @Operation(summary = "Lista despesas — avulsas e recorrentes, juntas",
+            description = "A listagem não separa por origem: quem pergunta 'o que devo em março?' quer a lista do mês. Use recurringExpenseId quando quiser só as ocorrências de uma regra.")
     @GetMapping
     public ResponseEntity<List<ExpenseResponse>> list(
             @CurrentUser UUID userId,

@@ -15,6 +15,7 @@ import br.com.gastos.financeiro.infrastructure.web.dto.GoogleLoginRequest;
 import br.com.gastos.financeiro.infrastructure.web.dto.LoginRequest;
 import br.com.gastos.financeiro.infrastructure.web.dto.RegisterRequest;
 import br.com.gastos.financeiro.infrastructure.web.dto.UserResponse;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -59,12 +60,16 @@ public class AuthController {
     }
 
     /** Cadastro por e-mail e senha. Já devolve o token, para o usuário não precisar logar em seguida. */
+    @Operation(summary = "Cria conta com e-mail e senha",
+            description = "Devolve o token já emitido, para não exigir um login logo em seguida. A conta nasce com 8 categorias padrão, editáveis.")
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
         User user = registerUser.execute(request.toCommand());
         return ResponseEntity.status(HttpStatus.CREATED).body(tokenFor(user));
     }
 
+    @Operation(summary = "Autentica com e-mail e senha",
+            description = "Qualquer falha devolve a mesma resposta, seja e-mail inexistente ou senha errada: respostas distintas revelariam quais e-mails estão cadastrados.")
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         User user = authenticateUser.execute(request.toCommand());
@@ -76,6 +81,8 @@ public class AuthController {
      * verificação de assinatura, emissor e audiência acontece no servidor — confiar na
      * validação feita pelo cliente seria não validar nada.
      */
+    @Operation(summary = "Entra com a conta Google",
+            description = "Recebe o id_token que o front obteve do Google. Assinatura, emissor e audiência são conferidos no servidor — confiar na validação feita pelo cliente seria não validar. Primeiro acesso cria a conta; acessos seguintes reaproveitam a mesma.")
     @PostMapping("/google")
     public ResponseEntity<AuthResponse> loginWithGoogle(@Valid @RequestBody GoogleLoginRequest request) {
         GoogleAccount account = googleTokenVerifier.verify(request.idToken());
@@ -87,6 +94,8 @@ public class AuthController {
     }
 
     /** Quem sou eu — útil para o front reidratar a sessão a partir de um token guardado. */
+    @Operation(summary = "Dados do usuário autenticado",
+            description = "Útil para o front reidratar a sessão a partir de um token guardado.")
     @GetMapping("/me")
     public ResponseEntity<UserResponse> me(@CurrentUser UUID userId) {
         return ResponseEntity.ok(UserResponse.from(findUser.findById(userId)));
