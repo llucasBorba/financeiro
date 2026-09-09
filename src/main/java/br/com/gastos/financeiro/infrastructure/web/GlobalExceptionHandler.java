@@ -36,8 +36,6 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return problem(HttpStatus.NOT_FOUND, "Recurso não encontrado", ex.getMessage());
     }
 
-    // TODO: quando a autenticacao entrar, a violacao de propriedade ("Acesso negado")
-    // deve virar 403/404 em vez de 400.
     @ExceptionHandler(BusinessException.class)
     public ProblemDetail handleBusiness(BusinessException ex) {
         return problem(HttpStatus.BAD_REQUEST, "Regra de negócio violada", ex.getMessage());
