@@ -5,6 +5,8 @@ import br.com.gastos.financeiro.core.ports.ingoing.CreateGoalUseCase;
 import br.com.gastos.financeiro.core.ports.ingoing.CreateGoalUseCase.CreateGoalCommand;
 import br.com.gastos.financeiro.core.ports.ingoing.DepositToGoalUseCase;
 import br.com.gastos.financeiro.core.ports.ingoing.DepositToGoalUseCase.DepositCommand;
+import br.com.gastos.financeiro.core.ports.ingoing.RegisterUserUseCase;
+import br.com.gastos.financeiro.core.ports.ingoing.RegisterUserUseCase.RegisterCommand;
 import br.com.gastos.financeiro.infrastructure.database.entity.FinancialGoalJpaEntity;
 import br.com.gastos.financeiro.infrastructure.database.repository.SpringDataFinancialGoalRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -44,10 +46,26 @@ class FinancialGoalConcurrencyTest {
     @Autowired
     private SpringDataFinancialGoalRepository jpaRepository;
 
+    @Autowired
+    private RegisterUserUseCase registerUser;
+
+    /**
+     * Cria um usuário de verdade em vez de inventar um UUID.
+     *
+     * <p>Antes da FK para {@code tb_users}, este teste gravava metas de um dono inexistente e
+     * ninguém notava — que é exatamente o tipo de linha órfã que a chave estrangeira passou a
+     * impedir. O teste quebrou assim que a restrição entrou: foi ele a primeira prova de que
+     * ela funciona.
+     */
+    private UUID novoUsuario() {
+        return registerUser.execute(new RegisterCommand(
+                "concorrencia-" + UUID.randomUUID() + "@teste.com", "senha-forte-123", "Teste")).getId();
+    }
+
     @Test
     @DisplayName("recusa a gravação de quem leu a meta antes do aporte de outro")
     void rejectsStaleWrite() {
-        UUID userId = UUID.randomUUID();
+        UUID userId = novoUsuario();
         FinancialGoal meta = createGoal.execute(new CreateGoalCommand(
                 userId, "Reserva de emergência", new BigDecimal("1000.00"), "BRL", LocalDate.of(2027, 1, 1)));
 
@@ -73,7 +91,7 @@ class FinancialGoalConcurrencyTest {
     @Test
     @DisplayName("incrementa a versão a cada aporte bem-sucedido")
     void versionAdvancesOnEachWrite() {
-        UUID userId = UUID.randomUUID();
+        UUID userId = novoUsuario();
         FinancialGoal meta = createGoal.execute(new CreateGoalCommand(
                 userId, "Viagem", new BigDecimal("500.00"), "BRL", null));
 
