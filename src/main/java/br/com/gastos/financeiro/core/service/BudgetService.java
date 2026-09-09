@@ -67,12 +67,11 @@ public class BudgetService implements SetBudgetUseCase, ListBudgetStatusUseCase,
     public List<BudgetStatus> execute(UUID userId, YearMonth month) {
         Objects.requireNonNull(month, "O mês é obrigatório.");
 
+        // Sem atalho para "nenhum limite definido": a lista inclui as categorias que tiveram
+        // movimento no mês mesmo sem limite, então os lançamentos precisam ser buscados de
+        // qualquer forma. É justamente o usuário que ainda não configurou nada que mais
+        // precisa ver onde o dinheiro está indo.
         List<Budget> orcamentos = budgetRepository.findByUserId(userId);
-        if (orcamentos.isEmpty()) {
-            // Sem limites definidos não há nada a confrontar, e não vale ir ao banco buscar
-            // lançamentos que ninguém vai somar.
-            return List.of();
-        }
 
         LocalDate primeiroDia = month.atDay(1);
         LocalDate ultimoDia = month.atEndOfMonth();

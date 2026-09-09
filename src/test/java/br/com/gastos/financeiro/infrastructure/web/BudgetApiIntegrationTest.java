@@ -154,15 +154,49 @@ class BudgetApiIntegrationTest {
     }
 
     @Test
-    @DisplayName("categoria sem limite não aparece na lista")
-    void categoriaSemLimiteNaoAparece() throws Exception {
+    @DisplayName("categoria com gasto e sem limite aparece, com os campos do limite nulos")
+    void categoriaSemLimiteApareceComLimiteNulo() throws Exception {
         Session s = auth.newUser();
         definirLimite(s, umaCategoria(s), "1000.00");
+        despesa(s, umaCategoria(s), "200.00", "2026-09-08", true);
         despesa(s, outraCategoria(s), "800.00", "2026-09-10", true);
 
         mockMvc.perform(get("/api/budgets").param("month", MES)
                         .header(HttpHeaders.AUTHORIZATION, s.bearer()))
-                .andExpect(jsonPath("$.length()").value(1));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+
+                // A com limite vem primeiro.
+                .andExpect(jsonPath("$[0].hasBudget").value(true))
+                .andExpect(jsonPath("$[0].monthlyLimit").value(1000.00))
+
+                // A sem limite traz o gasto, e nulo em tudo que depende do limite —
+                // nao zero, que diria "nao gastou nada" para quem gastou R$ 800.
+                .andExpect(jsonPath("$[1].hasBudget").value(false))
+                .andExpect(jsonPath("$[1].spent").value(800.00))
+                .andExpect(jsonPath("$[1].currency").value("BRL"))
+                .andExpect(jsonPath("$[1].monthlyLimit").doesNotExist())
+                .andExpect(jsonPath("$[1].remaining").doesNotExist())
+                .andExpect(jsonPath("$[1].usedPercentage").doesNotExist())
+                .andExpect(jsonPath("$[1].projectedPercentage").doesNotExist())
+                .andExpect(jsonPath("$[1].exceeded").value(false))
+                .andExpect(jsonPath("$[1].projectedToExceed").value(false));
+    }
+
+    @Test
+    @DisplayName("sem nenhum limite definido, ainda mostra onde o dinheiro foi")
+    void semNenhumLimiteAindaMostraOsGastos() throws Exception {
+        // É o estado de quem acabou de instalar: nenhum orçamento configurado. Antes a lista
+        // vinha vazia, que é o pior momento possível para não mostrar nada.
+        Session s = auth.newUser();
+        despesa(s, umaCategoria(s), "300.00", "2026-09-10", true);
+
+        mockMvc.perform(get("/api/budgets").param("month", MES)
+                        .header(HttpHeaders.AUTHORIZATION, s.bearer()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].hasBudget").value(false))
+                .andExpect(jsonPath("$[0].spent").value(300.00));
     }
 
     @Test

@@ -59,11 +59,13 @@ public class BudgetController {
         return ResponseEntity.ok(BudgetResponse.from(setBudget.execute(request.toCommand(userId, categoryId))));
     }
 
-    @Operation(summary = "Lista os limites confrontados com um mês",
-            description = "Para cada categoria com limite: quanto foi PAGO no mês, quanto está "
-                    + "em aberto vencendo até o fim do mês, e se estourou ou vai estourar. "
-                    + "Ordena do mais apertado para o mais folgado. "
-                    + "Categoria sem limite definido não aparece.")
+    @Operation(summary = "Lista os gastos do mês por categoria, com o limite quando houver",
+            description = "Para cada categoria: quanto foi PAGO no mês, quanto está em aberto "
+                    + "vencendo até o fim do mês, e se estourou ou vai estourar o limite. "
+                    + "Categoria que teve gasto mas não tem limite também aparece, com "
+                    + "hasBudget=false e os campos derivados do limite nulos. "
+                    + "Ordena as com limite primeiro, do mais apertado para o mais folgado, "
+                    + "e depois as sem limite, da que mais consumiu para a que menos.")
     @GetMapping
     public ResponseEntity<List<BudgetStatusResponse>> list(
             @CurrentUser UUID userId,

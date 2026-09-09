@@ -11,6 +11,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BudgetStatusTest {
@@ -91,15 +92,57 @@ class BudgetStatusTest {
     }
 
     @Test
-    @DisplayName("ignora despesas de outra categoria")
-    void ignoraOutrasCategorias() {
-        BudgetStatus s = BudgetStatus.forMonth(
+    @DisplayName("nao mistura o gasto de uma categoria no total de outra")
+    void naoMisturaCategorias() {
+        List<BudgetStatus> status = BudgetStatus.forMonth(
                 List.of(limite(ALIMENTACAO, "1000.00")),
                 List.of(despesa(ALIMENTACAO, "100.00"), despesa(TRANSPORTE, "900.00")),
                 List.of(),
-                NOMES).get(0);
+                NOMES);
 
-        assertEquals(new BigDecimal("100.00"), s.getSpent().getAmount());
+        assertEquals(new BigDecimal("100.00"), status.get(0).getSpent().getAmount());
+        assertEquals(new BigDecimal("900.00"), status.get(1).getSpent().getAmount());
+    }
+
+    @Test
+    @DisplayName("categoria com gasto e sem limite entra na lista, com derivados nulos")
+    void categoriaSemLimiteEntraNaLista() {
+        List<BudgetStatus> status = BudgetStatus.forMonth(
+                List.of(),
+                List.of(despesa(TRANSPORTE, "800.00")),
+                List.of(despesa(TRANSPORTE, "200.00")),
+                NOMES);
+
+        assertEquals(1, status.size());
+        BudgetStatus s = status.get(0);
+        assertFalse(s.hasBudget());
+        assertEquals(new BigDecimal("800.00"), s.getSpent().getAmount());
+        assertEquals(new BigDecimal("200.00"), s.getPending().getAmount());
+        assertEquals("BRL", s.getCurrency(), "a moeda vem dos lançamentos quando não há limite");
+
+        // Nulo, e nao zero: "0% usado" para quem gastou R$ 800 seria um numero que parece
+        // verdadeiro e nao e.
+        assertNull(s.usedPercentage());
+        assertNull(s.projectedPercentage());
+        assertNull(s.remaining());
+        assertNull(s.getMonthlyLimit());
+        assertFalse(s.isExceeded(), "sem teto nao ha o que estourar");
+        assertFalse(s.isProjectedToExceed());
+    }
+
+    @Test
+    @DisplayName("com limite vem antes de sem limite, mesmo gastando menos")
+    void comLimiteVemPrimeiro() {
+        List<BudgetStatus> status = BudgetStatus.forMonth(
+                List.of(limite(ALIMENTACAO, "1000.00")),
+                List.of(despesa(ALIMENTACAO, "10.00"), despesa(TRANSPORTE, "5000.00")),
+                List.of(),
+                NOMES);
+
+        assertEquals("Alimentação", status.get(0).getCategoryName());
+        assertTrue(status.get(0).hasBudget());
+        assertEquals("Transporte", status.get(1).getCategoryName());
+        assertFalse(status.get(1).hasBudget());
     }
 
     @Test

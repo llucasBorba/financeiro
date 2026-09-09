@@ -7,7 +7,11 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 /**
- * O limite de uma categoria confrontado com o mês consultado.
+ * Uma categoria no mês consultado, com o limite dela quando existe.
+ *
+ * <p>Categoria que teve gasto mas não tem limite também aparece, com {@code hasBudget: false}
+ * e todos os campos derivados do limite nulos. Nulo, e não zero: "0% usado" para quem gastou
+ * R$ 800 seria um número que parece verdadeiro e não é.
  *
  * <p>{@code spent} e {@code pending} vêm separados de propósito, e as duas porcentagens
  * existem por causa disso: {@code usedPercentage} mede o que já saiu, {@code projectedPercentage}
@@ -19,8 +23,14 @@ public record BudgetStatusResponse(
         UUID categoryId,
         String categoryName,
 
-        @Schema(description = "O limite definido para a categoria.", example = "1000.00")
+        @Schema(description = "Se existe limite definido. Quando falso, os campos que dependem "
+                + "do limite vêm nulos.", example = "true")
+        boolean hasBudget,
+
+        @Schema(description = "O limite definido para a categoria. Nulo quando não há limite.",
+                example = "1000.00", nullable = true)
         BigDecimal monthlyLimit,
+
         String currency,
 
         @Schema(description = "Despesas desta categoria PAGAS dentro do mês.", example = "500.00")
@@ -30,27 +40,33 @@ public record BudgetStatusResponse(
                 example = "400.00")
         BigDecimal pending,
 
-        @Schema(description = "Limite menos o gasto. Negativo quando estourou.", example = "500.00")
+        @Schema(description = "Limite menos o gasto. Negativo quando estourou, nulo sem limite.",
+                example = "500.00", nullable = true)
         BigDecimal remaining,
 
-        @Schema(description = "Percentual do limite já gasto.", example = "50.00")
+        @Schema(description = "Percentual do limite já gasto. Nulo sem limite.",
+                example = "50.00", nullable = true)
         BigDecimal usedPercentage,
 
-        @Schema(description = "Percentual considerando gasto mais o que está a pagar.", example = "90.00")
+        @Schema(description = "Percentual considerando gasto mais o que está a pagar. Nulo sem limite.",
+                example = "90.00", nullable = true)
         BigDecimal projectedPercentage,
 
-        @Schema(description = "Já passou do limite com dinheiro que saiu.", example = "false")
+        @Schema(description = "Já passou do limite com dinheiro que saiu. Falso sem limite.",
+                example = "false")
         boolean exceeded,
 
-        @Schema(description = "Vai passar do limite se tudo que está em aberto for pago.", example = "false")
+        @Schema(description = "Vai passar do limite se tudo que está em aberto for pago.",
+                example = "false")
         boolean projectedToExceed
 ) {
     public static BudgetStatusResponse from(BudgetStatus status) {
         return new BudgetStatusResponse(
                 status.getCategoryId(),
                 status.getCategoryName(),
-                status.getMonthlyLimit().getAmount(),
-                status.getMonthlyLimit().getCurrency(),
+                status.hasBudget(),
+                status.hasBudget() ? status.getMonthlyLimit().getAmount() : null,
+                status.getCurrency(),
                 status.getSpent().getAmount(),
                 status.getPending().getAmount(),
                 status.remaining(),
