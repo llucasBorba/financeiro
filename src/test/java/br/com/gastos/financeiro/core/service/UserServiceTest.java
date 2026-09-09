@@ -6,6 +6,7 @@ import br.com.gastos.financeiro.core.model.Email;
 import br.com.gastos.financeiro.core.model.User;
 import br.com.gastos.financeiro.core.ports.ingoing.AuthenticateUserUseCase.LoginCommand;
 import br.com.gastos.financeiro.core.ports.ingoing.AuthenticateWithGoogleUseCase.GoogleLoginCommand;
+import br.com.gastos.financeiro.core.ports.ingoing.ChangePasswordUseCase.ChangePasswordCommand;
 import br.com.gastos.financeiro.core.ports.ingoing.RegisterUserUseCase.RegisterCommand;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -175,5 +176,70 @@ class UserServiceTest {
 
         assertThrows(IllegalStateException.class,
                 () -> service.execute(new GoogleLoginCommand("google-999", "lucas@exemplo.com", "Lucas", true)));
+    }
+
+    // ------------------------------------------------------ troca de senha
+
+    private User usuarioComSenha(String email, String senha) {
+        return service.execute(new RegisterCommand(email, senha, "Lucas"));
+    }
+
+    @Test
+    @DisplayName("troca a senha e a antiga para de funcionar")
+    void trocaSenhaInvalidaAAntiga() {
+        User user = usuarioComSenha("troca@teste.com", "senha-antiga-123");
+
+        service.execute(new ChangePasswordCommand(user.getId(), "senha-antiga-123", "senha-nova-456"));
+
+        assertThrows(AuthenticationException.class,
+                () -> service.execute(new LoginCommand("troca@teste.com", "senha-antiga-123")));
+        assertNotNull(service.execute(new LoginCommand("troca@teste.com", "senha-nova-456")));
+    }
+
+    @Test
+    @DisplayName("recusa quando a senha atual está errada")
+    void recusaSenhaAtualErrada() {
+        User user = usuarioComSenha("errada@teste.com", "senha-antiga-123");
+
+        // Sem exigir a senha atual, um token roubado viraria acesso permanente.
+        assertThrows(BusinessException.class, () -> service.execute(
+                new ChangePasswordCommand(user.getId(), "chute-errado-999", "senha-nova-456")));
+
+        // E a senha original continua valendo: a operação foi recusada, não aplicada pela metade.
+        assertNotNull(service.execute(new LoginCommand("errada@teste.com", "senha-antiga-123")));
+    }
+
+    @Test
+    @DisplayName("recusa nova senha igual à atual")
+    void recusaSenhaRepetida() {
+        User user = usuarioComSenha("igual@teste.com", "senha-antiga-123");
+
+        // Quem troca a senha por achar que ela vazou precisa saber que ela mudou de fato.
+        assertThrows(BusinessException.class, () -> service.execute(
+                new ChangePasswordCommand(user.getId(), "senha-antiga-123", "senha-antiga-123")));
+    }
+
+    @Test
+    @DisplayName("recusa nova senha curta demais")
+    void recusaSenhaCurta() {
+        User user = usuarioComSenha("curta@teste.com", "senha-antiga-123");
+
+        assertThrows(BusinessException.class, () -> service.execute(
+                new ChangePasswordCommand(user.getId(), "senha-antiga-123", "abc")));
+    }
+
+    @Test
+    @DisplayName("conta criada pelo Google não tem senha para trocar")
+    void contaGoogleNaoTrocaSenha() {
+        // Deixar definir senha aqui transformaria um token roubado em acesso permanente:
+        // o ladrão criaria uma senha e continuaria entrando depois de o token expirar.
+        User google = service.execute(new GoogleLoginCommand(
+                "google-123", "google@teste.com", "Lucas", true));
+
+        BusinessException erro = assertThrows(BusinessException.class, () -> service.execute(
+                new ChangePasswordCommand(google.getId(), "qualquer-coisa", "senha-nova-456")));
+
+        // A mensagem precisa dizer a verdade: nao e "senha atual incorreta", e "nao ha senha".
+        assertTrue(erro.getMessage().contains("Google"), erro.getMessage());
     }
 }

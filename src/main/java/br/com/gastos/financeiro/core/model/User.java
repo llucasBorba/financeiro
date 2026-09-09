@@ -82,6 +82,24 @@ public class User {
         this.emailVerified = true;
     }
 
+    /**
+     * Troca o hash da senha. Quem confere a senha ATUAL é o serviço — o domínio não conhece o
+     * algoritmo, só guarda o resultado.
+     *
+     * <p>Recusa em conta sem senha: uma conta criada pelo Google não tem credencial a
+     * substituir, e deixar definir uma aqui transformaria um token roubado em acesso
+     * permanente — o ladrão criaria uma senha e continuaria entrando depois de o token expirar.
+     * Adicionar senha a uma conta Google é outro fluxo, e precisa de prova por e-mail.
+     */
+    public void changePassword(String newPasswordHash) {
+        Objects.requireNonNull(newPasswordHash, "O hash da nova senha é obrigatório.");
+        if (!hasPassword()) {
+            throw new IllegalStateException(
+                    "Esta conta entra pelo Google e não tem senha para trocar.");
+        }
+        this.passwordHash = newPasswordHash;
+    }
+
     public void changeName(String name) {
         this.name = name;
     }

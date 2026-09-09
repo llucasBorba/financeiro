@@ -4,6 +4,7 @@ import br.com.gastos.financeiro.core.model.User;
 import br.com.gastos.financeiro.core.ports.ingoing.AuthenticateUserUseCase;
 import br.com.gastos.financeiro.core.ports.ingoing.AuthenticateWithGoogleUseCase;
 import br.com.gastos.financeiro.core.ports.ingoing.AuthenticateWithGoogleUseCase.GoogleLoginCommand;
+import br.com.gastos.financeiro.core.ports.ingoing.ChangePasswordUseCase;
 import br.com.gastos.financeiro.core.ports.ingoing.FindUserUseCase;
 import br.com.gastos.financeiro.core.ports.ingoing.RegisterUserUseCase;
 import br.com.gastos.financeiro.infrastructure.identity.CurrentUser;
@@ -12,6 +13,7 @@ import br.com.gastos.financeiro.infrastructure.config.security.GoogleTokenVerifi
 import br.com.gastos.financeiro.infrastructure.config.security.GoogleTokenVerifier.GoogleAccount;
 import br.com.gastos.financeiro.infrastructure.config.security.JwtIssuer;
 import br.com.gastos.financeiro.infrastructure.web.dto.AuthResponse;
+import br.com.gastos.financeiro.infrastructure.web.dto.ChangePasswordRequest;
 import br.com.gastos.financeiro.infrastructure.web.dto.GoogleLoginRequest;
 import br.com.gastos.financeiro.infrastructure.web.dto.LoginRequest;
 import br.com.gastos.financeiro.infrastructure.web.dto.RegisterRequest;
@@ -47,6 +49,7 @@ public class AuthController {
     private final GoogleTokenVerifier googleTokenVerifier;
     private final JwtIssuer jwtIssuer;
     private final LoginAttemptLimiter loginAttemptLimiter;
+    private final ChangePasswordUseCase changePassword;
 
     public AuthController(RegisterUserUseCase registerUser,
                           AuthenticateUserUseCase authenticateUser,
@@ -54,7 +57,8 @@ public class AuthController {
                           FindUserUseCase findUser,
                           GoogleTokenVerifier googleTokenVerifier,
                           JwtIssuer jwtIssuer,
-                          LoginAttemptLimiter loginAttemptLimiter) {
+                          LoginAttemptLimiter loginAttemptLimiter,
+                          ChangePasswordUseCase changePassword) {
         this.registerUser = registerUser;
         this.authenticateUser = authenticateUser;
         this.authenticateWithGoogle = authenticateWithGoogle;
@@ -62,6 +66,7 @@ public class AuthController {
         this.googleTokenVerifier = googleTokenVerifier;
         this.jwtIssuer = jwtIssuer;
         this.loginAttemptLimiter = loginAttemptLimiter;
+        this.changePassword = changePassword;
     }
 
     /** Cadastro por e-mail e senha. Já devolve o token, para o usuário não precisar logar em seguida. */
@@ -124,6 +129,23 @@ public class AuthController {
     @GetMapping("/me")
     public ResponseEntity<UserResponse> me(@CurrentUser UUID userId) {
         return ResponseEntity.ok(UserResponse.from(findUser.findById(userId)));
+    }
+
+    /**
+     * Troca a senha de quem já está logado.
+     *
+     * <p>Não depende de e-mail: quem está autenticado já provou quem é, e a senha atual é a
+     * prova para esta operação específica. É o caminho que existe hoje para quem desconfia que
+     * a senha vazou.
+     */
+    @Operation(summary = "Troca a própria senha",
+            description = "Exige a senha atual como prova. Não desloga as sessões já abertas: "
+                    + "um token emitido antes continua válido até expirar, porque JWT não é revogável.")
+    @PostMapping("/password")
+    public ResponseEntity<Void> changePassword(@CurrentUser UUID userId,
+                                               @Valid @RequestBody ChangePasswordRequest request) {
+        changePassword.execute(request.toCommand(userId));
+        return ResponseEntity.noContent().build();
     }
 
     private AuthResponse tokenFor(User user) {

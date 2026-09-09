@@ -195,4 +195,64 @@ class AuthApiIntegrationTest {
                         .content("{\"idToken\":\"\"}"))
                 .andExpect(status().isBadRequest());
     }
+
+    @Test
+    @DisplayName("troca a senha estando logado: a antiga para de valer e a nova entra")
+    void trocaSenhaEstandoLogado() throws Exception {
+        String email = emailNovo();
+        String body = mockMvc.perform(post("/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(registerPayload(email, SENHA)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        String token = "Bearer " + com.jayway.jsonpath.JsonPath.read(body, "$.accessToken");
+
+        mockMvc.perform(post("/auth/password")
+                        .header(HttpHeaders.AUTHORIZATION, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"currentPassword\":\"%s\",\"newPassword\":\"senha-nova-do-lucas\"}"
+                                .formatted(SENHA)))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"%s\",\"password\":\"%s\"}".formatted(email, SENHA)))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"%s\",\"password\":\"senha-nova-do-lucas\"}".formatted(email))) 
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("trocar senha exige estar autenticado")
+    void trocaSenhaExigeToken() throws Exception {
+        mockMvc.perform(post("/auth/password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"currentPassword\":\"a\",\"newPassword\":\"senha-nova-do-lucas\"}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("senha atual errada devolve 400 e nao troca nada")
+    void senhaAtualErradaNaoTroca() throws Exception {
+        String email = emailNovo();
+        String body = mockMvc.perform(post("/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(registerPayload(email, SENHA)))
+                .andReturn().getResponse().getContentAsString();
+        String token = "Bearer " + com.jayway.jsonpath.JsonPath.read(body, "$.accessToken");
+
+        mockMvc.perform(post("/auth/password")
+                        .header(HttpHeaders.AUTHORIZATION, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"currentPassword\":\"chute-errado-999\",\"newPassword\":\"senha-nova-do-lucas\"}"))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"%s\",\"password\":\"%s\"}".formatted(email, SENHA)))
+                .andExpect(status().isOk());
+    }
 }

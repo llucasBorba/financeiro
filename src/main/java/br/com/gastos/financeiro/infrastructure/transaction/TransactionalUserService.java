@@ -3,6 +3,7 @@ package br.com.gastos.financeiro.infrastructure.transaction;
 import br.com.gastos.financeiro.core.model.User;
 import br.com.gastos.financeiro.core.ports.ingoing.AuthenticateUserUseCase;
 import br.com.gastos.financeiro.core.ports.ingoing.AuthenticateWithGoogleUseCase;
+import br.com.gastos.financeiro.core.ports.ingoing.ChangePasswordUseCase;
 import br.com.gastos.financeiro.core.ports.ingoing.FindUserUseCase;
 import br.com.gastos.financeiro.core.ports.ingoing.RegisterUserUseCase;
 import br.com.gastos.financeiro.core.service.UserService;
@@ -19,6 +20,7 @@ import java.util.UUID;
  * logins chegam juntos. A transação fecha a janela; o índice UNIQUE no banco é a rede de segurança.
  */
 public class TransactionalUserService implements RegisterUserUseCase, AuthenticateUserUseCase,
+        ChangePasswordUseCase,
         AuthenticateWithGoogleUseCase, FindUserUseCase {
 
     private final UserService delegate;
@@ -45,6 +47,13 @@ public class TransactionalUserService implements RegisterUserUseCase, Authentica
     @Transactional
     public User execute(GoogleLoginCommand command) {
         return delegate.execute(command);
+    }
+
+    /** Ler-conferir-gravar precisa ser atômico, como no aporte da meta. */
+    @Override
+    @Transactional
+    public void execute(ChangePasswordCommand command) {
+        delegate.execute(command);
     }
 
     @Override

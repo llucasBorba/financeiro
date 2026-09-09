@@ -11,6 +11,7 @@ import br.com.gastos.financeiro.core.ports.ingoing.FindUserUseCase;
 import br.com.gastos.financeiro.core.ports.ingoing.RegisterUserUseCase;
 import br.com.gastos.financeiro.core.model.Category;
 import br.com.gastos.financeiro.core.ports.outgoing.CategoryRepositoryPort;
+import br.com.gastos.financeiro.core.ports.ingoing.ChangePasswordUseCase;
 import br.com.gastos.financeiro.core.ports.outgoing.PasswordHasherPort;
 import br.com.gastos.financeiro.core.ports.outgoing.UserRepositoryPort;
 
@@ -19,7 +20,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 public class UserService implements RegisterUserUseCase, AuthenticateUserUseCase,
-        AuthenticateWithGoogleUseCase, FindUserUseCase {
+        AuthenticateWithGoogleUseCase, ChangePasswordUseCase, FindUserUseCase {
 
     /** Tamanho mínimo da senha. Comprimento é a defesa que mais importa contra força bruta. */
     public static final int MIN_PASSWORD_LENGTH = 8;
@@ -43,6 +44,37 @@ public class UserService implements RegisterUserUseCase, AuthenticateUserUseCase
         this.userRepository = Objects.requireNonNull(userRepository, "O repositório de usuários é obrigatório.");
         this.passwordHasher = Objects.requireNonNull(passwordHasher, "O hasher de senha é obrigatório.");
         this.categoryRepository = Objects.requireNonNull(categoryRepository, "O repositório de categorias é obrigatório.");
+    }
+
+    @Override
+    public void execute(ChangePasswordCommand command) {
+        User user = findById(command.userId());
+
+        // Antes de conferir a senha atual: numa conta só do Google não existe hash, e
+        // matches(senha, null) devolve falso — o usuário receberia "senha atual incorreta"
+        // para uma conta que nunca teve senha. Aqui não há risco de vazar nada, porque a
+        // pessoa já está autenticada como ela mesma.
+        if (!user.hasPassword()) {
+            throw new BusinessException("Esta conta entra pelo Google e não tem senha para trocar.");
+        }
+
+        // A senha ATUAL é a prova. Sem ela, um token roubado viraria acesso permanente: o
+        // ladrão trocaria a senha, continuaria entrando depois de o token expirar, e ainda
+        // deixaria o dono de fora da própria conta.
+        if (!passwordHasher.matches(command.currentPassword(), user.getPasswordHash())) {
+            throw new BusinessException("A senha atual está incorreta.");
+        }
+
+        validatePassword(command.newPassword());
+
+        // Recusar a senha repetida evita a troca que parece ter acontecido e não aconteceu:
+        // quem troca a senha por achar que ela vazou precisa saber que ela de fato mudou.
+        if (passwordHasher.matches(command.newPassword(), user.getPasswordHash())) {
+            throw new BusinessException("A nova senha precisa ser diferente da atual.");
+        }
+
+        user.changePassword(passwordHasher.hash(command.newPassword()));
+        userRepository.save(user);
     }
 
     @Override
