@@ -1,8 +1,10 @@
 package br.com.gastos.financeiro.infrastructure.config.security;
 
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.Customizer;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -11,9 +13,14 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.servlet.HandlerExceptionResolver;
 
 import java.time.Clock;
+import java.time.Duration;
+import java.util.List;
 
 /**
  * Regras de acesso da API.
@@ -45,6 +52,51 @@ public class SecurityConfig {
         return Clock.systemUTC();
     }
 
+    /**
+     * Libera o front a chamar esta API de outra origem.
+     *
+     * <p>O navegador bloqueia por padrão requisições de um site para outra origem — e
+     * {@code localhost:3000} e {@code localhost:8080} são origens diferentes, porque a porta
+     * entra na conta. Sem esta configuração a chamada nem chega ao servidor: o navegador a
+     * barra antes, então não há log nenhum deste lado para consultar, e o erro no console não
+     * diz "faltou CORS", parece falha de rede.
+     *
+     * <p>A origem vem do ambiente e não fica escrita no código: versionar {@code localhost}
+     * significaria que produção sobe apontando para a máquina de alguém.
+     */
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource(
+            @Value("${app.cors.allowed-origins:http://localhost:3000}") List<String> allowedOrigins) {
+
+        CorsConfiguration config = new CorsConfiguration();
+        config.setAllowedOrigins(allowedOrigins);
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+
+        // Authorization precisa estar aqui, senão o preflight é aprovado e a requisição real é
+        // barrada por causa do header do token — sintoma confuso: funciona em rota pública e
+        // falha em rota autenticada.
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
+
+        // O JavaScript só enxerga um punhado de headers de resposta por padrão; estes dois
+        // ficariam invisíveis para o front sem serem declarados aqui.
+        // Location: devolvido pelos POST de criação, com a URL do recurso novo.
+        // Retry-After: quanto falta para sair da trava de tentativas de login — sem ele, a tela
+        // de erro não consegue dizer ao usuário quando tentar de novo.
+        config.setExposedHeaders(List.of("Location", "Retry-After"));
+
+        // Sem allowCredentials: a autenticação é por header Authorization, que o front envia
+        // explicitamente. Só vira necessário se um dia o refresh token for guardado em cookie
+        // HttpOnly — e aí CSRF, hoje desligado com razão, volta a precisar de atenção.
+
+        // Cacheia o preflight por 1h: sem isto o navegador manda um OPTIONS antes de cada
+        // requisição, dobrando o número de idas ao servidor.
+        config.setMaxAge(Duration.ofHours(1));
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", config);
+        return source;
+    }
+
     @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
@@ -58,6 +110,11 @@ public class SecurityConfig {
                 // header Authorization, que o navegador não envia sozinho em requisição de outro
                 // site — o ataque que o CSRF previne não se aplica aqui.
                 .csrf(csrf -> csrf.disable())
+
+                // Precisa ser chamado explicitamente: sem isto o bean corsConfigurationSource
+                // abaixo existiria e nunca seria consultado, e o navegador barraria toda
+                // requisição do front sem que nada aparecesse no log do servidor.
+                .cors(Customizer.withDefaults())
 
                 // Sem sessão no servidor: cada requisição se prova sozinha pelo token.
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
