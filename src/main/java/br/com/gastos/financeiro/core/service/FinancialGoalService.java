@@ -8,6 +8,7 @@ import br.com.gastos.financeiro.core.ports.ingoing.DeleteGoalUseCase;
 import br.com.gastos.financeiro.core.ports.ingoing.DepositToGoalUseCase;
 import br.com.gastos.financeiro.core.ports.ingoing.FindGoalUseCase;
 import br.com.gastos.financeiro.core.ports.ingoing.UpdateGoalUseCase;
+import br.com.gastos.financeiro.core.ports.ingoing.WithdrawFromGoalUseCase;
 import br.com.gastos.financeiro.core.ports.outgoing.FinancialGoalRepositoryPort;
 
 import java.util.List;
@@ -15,7 +16,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 public class FinancialGoalService implements CreateGoalUseCase, UpdateGoalUseCase,
-        DeleteGoalUseCase, DepositToGoalUseCase, FindGoalUseCase {
+        DeleteGoalUseCase, DepositToGoalUseCase, WithdrawFromGoalUseCase, FindGoalUseCase {
 
     private final FinancialGoalRepositoryPort goalRepository;
 
@@ -64,6 +65,15 @@ public class FinancialGoalService implements CreateGoalUseCase, UpdateGoalUseCas
 
         // Atualiza o valor atual na própria entidade
         goal.deposit(depositAmount);
+
+        return goalRepository.save(goal);
+    }
+
+    @Override
+    public FinancialGoal execute(WithdrawCommand command) {
+        FinancialGoal goal = findById(command.goalId(), command.userId());
+
+        goal.withdraw(new Money(command.amount(), command.currency()));
 
         return goalRepository.save(goal);
     }

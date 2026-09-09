@@ -66,6 +66,25 @@ public class FinancialGoal {
         this.currentAmount = this.currentAmount.add(contribution);
     }
 
+    /**
+     * Retira dinheiro da meta. Simétrico a {@link #deposit(Money)}.
+     *
+     * <p>Sem isto, guardar dinheiro numa meta era via de mão única: um aporte digitado errado
+     * só poderia ser desfeito apagando a meta e recriando, perdendo o id e o histórico — a
+     * mesma assimetria que {@code undoPayment()} resolveu na despesa.
+     *
+     * <p>Quem barra o resgate maior que o saldo é o próprio {@link Money}: subtrair além do
+     * que existe produziria uma quantia negativa, que o value object não admite. A regra mora
+     * lá porque vale para qualquer dinheiro do sistema, não só para metas.
+     */
+    public void withdraw(Money amount) {
+        Objects.requireNonNull(amount, "O valor do resgate é obrigatório.");
+        if (amount.isZero()) {
+            throw new IllegalArgumentException("O resgate deve ser maior que zero.");
+        }
+        this.currentAmount = this.currentAmount.subtract(amount);
+    }
+
     // Métodos utilitários de negócio
     public boolean isAchieved() {
         return this.currentAmount.getAmount().compareTo(this.targetAmount.getAmount()) >= 0;

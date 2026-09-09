@@ -6,11 +6,13 @@ import br.com.gastos.financeiro.core.ports.ingoing.DeleteGoalUseCase;
 import br.com.gastos.financeiro.core.ports.ingoing.DepositToGoalUseCase;
 import br.com.gastos.financeiro.core.ports.ingoing.FindGoalUseCase;
 import br.com.gastos.financeiro.core.ports.ingoing.UpdateGoalUseCase;
+import br.com.gastos.financeiro.core.ports.ingoing.WithdrawFromGoalUseCase;
 import br.com.gastos.financeiro.infrastructure.identity.CurrentUser;
 import br.com.gastos.financeiro.infrastructure.web.dto.CreateGoalRequest;
 import br.com.gastos.financeiro.infrastructure.web.dto.DepositRequest;
 import br.com.gastos.financeiro.infrastructure.web.dto.GoalResponse;
 import br.com.gastos.financeiro.infrastructure.web.dto.UpdateGoalRequest;
+import br.com.gastos.financeiro.infrastructure.web.dto.WithdrawalRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -35,17 +37,20 @@ public class FinancialGoalController {
     private final UpdateGoalUseCase updateGoal;
     private final DeleteGoalUseCase deleteGoal;
     private final DepositToGoalUseCase depositToGoal;
+    private final WithdrawFromGoalUseCase withdrawFromGoal;
     private final FindGoalUseCase findGoal;
 
     public FinancialGoalController(CreateGoalUseCase createGoal,
                                    UpdateGoalUseCase updateGoal,
                                    DeleteGoalUseCase deleteGoal,
                                    DepositToGoalUseCase depositToGoal,
+                                   WithdrawFromGoalUseCase withdrawFromGoal,
                                    FindGoalUseCase findGoal) {
         this.createGoal = createGoal;
         this.updateGoal = updateGoal;
         this.deleteGoal = deleteGoal;
         this.depositToGoal = depositToGoal;
+        this.withdrawFromGoal = withdrawFromGoal;
         this.findGoal = findGoal;
     }
 
@@ -83,6 +88,16 @@ public class FinancialGoalController {
                                                 @PathVariable UUID id,
                                                 @Valid @RequestBody DepositRequest request) {
         FinancialGoal goal = depositToGoal.execute(request.toCommand(id, userId));
+        return ResponseEntity.ok(GoalResponse.from(goal));
+    }
+
+    @Operation(summary = "Resgata parte do valor guardado na meta",
+               description = "Contrapartida do aporte. Recusa com 400 se o resgate passar do saldo guardado.")
+    @PostMapping("/{id}/withdrawals")
+    public ResponseEntity<GoalResponse> withdraw(@CurrentUser UUID userId,
+                                                 @PathVariable UUID id,
+                                                 @Valid @RequestBody WithdrawalRequest request) {
+        FinancialGoal goal = withdrawFromGoal.execute(request.toCommand(id, userId));
         return ResponseEntity.ok(GoalResponse.from(goal));
     }
 

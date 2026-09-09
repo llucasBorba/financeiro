@@ -84,4 +84,50 @@ class FinancialGoalTest {
         assertEquals(0, new BigDecimal("7500.00").compareTo(goal.getCurrentAmount().getAmount()));
         assertFalse(goal.isAchieved());
     }
+
+    @Test
+    @DisplayName("resgate reduz o valor guardado")
+    void resgateReduzOSaldo() {
+        FinancialGoal meta = novaMeta();
+        meta.deposit(new Money(new BigDecimal("500.00"), "BRL"));
+
+        meta.withdraw(new Money(new BigDecimal("200.00"), "BRL"));
+
+        assertEquals(new BigDecimal("300.00"), meta.getCurrentAmount().getAmount());
+    }
+
+    @Test
+    @DisplayName("recusa resgate maior que o saldo guardado")
+    void recusaResgateAcimaDoSaldo() {
+        FinancialGoal meta = novaMeta();
+        meta.deposit(new Money(new BigDecimal("100.00"), "BRL"));
+
+        // Quem barra é o Money: o resultado seria negativo, e quantia negativa nao existe.
+        assertThrows(IllegalArgumentException.class,
+                () -> meta.withdraw(new Money(new BigDecimal("100.01"), "BRL")));
+
+        // E o saldo continua intacto: a operacao foi recusada, nao aplicada pela metade.
+        assertEquals(new BigDecimal("100.00"), meta.getCurrentAmount().getAmount());
+    }
+
+    @Test
+    @DisplayName("recusa resgate de valor zero")
+    void recusaResgateZerado() {
+        FinancialGoal meta = novaMeta();
+        meta.deposit(new Money(new BigDecimal("100.00"), "BRL"));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> meta.withdraw(Money.zero("BRL")));
+    }
+
+    @Test
+    @DisplayName("resgate ate zerar e permitido")
+    void permiteResgatarTudo() {
+        FinancialGoal meta = novaMeta();
+        meta.deposit(new Money(new BigDecimal("100.00"), "BRL"));
+
+        meta.withdraw(new Money(new BigDecimal("100.00"), "BRL"));
+
+        assertTrue(meta.getCurrentAmount().isZero());
+    }
 }

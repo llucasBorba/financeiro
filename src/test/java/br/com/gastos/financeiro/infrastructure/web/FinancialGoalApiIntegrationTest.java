@@ -182,4 +182,61 @@ class FinancialGoalApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.title").value("Reserva de emergência"));
     }
+
+    @Test
+    @DisplayName("resgate devolve parte do valor guardado e persiste")
+    void withdrawalsReduceAndPersist() throws Exception {
+        Session session = auth.newUser();
+        String goalId = criarMeta(session);
+
+        mockMvc.perform(post("/api/goals/{id}/deposits", goalId)
+                        .header(HttpHeaders.AUTHORIZATION, session.bearer())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"amount\":5000.00,\"currency\":\"BRL\"}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/goals/{id}/withdrawals", goalId)
+                        .header(HttpHeaders.AUTHORIZATION, session.bearer())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"amount\":1500.00,\"currency\":\"BRL\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentAmount").value(3500.00));
+
+        mockMvc.perform(get("/api/goals/{id}", goalId).header(HttpHeaders.AUTHORIZATION, session.bearer()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.currentAmount").value(3500.00));
+    }
+
+    @Test
+    @DisplayName("recusa resgate maior que o saldo guardado, com 400")
+    void rejectsWithdrawalAboveBalance() throws Exception {
+        Session session = auth.newUser();
+        String goalId = criarMeta(session);
+
+        mockMvc.perform(post("/api/goals/{id}/deposits", goalId)
+                        .header(HttpHeaders.AUTHORIZATION, session.bearer())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"amount\":100.00,\"currency\":\"BRL\"}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/goals/{id}/withdrawals", goalId)
+                        .header(HttpHeaders.AUTHORIZATION, session.bearer())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"amount\":100.01,\"currency\":\"BRL\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("meta de outro dono nao aceita resgate: 404, nao 403")
+    void rejectsWithdrawalFromOtherUsersGoal() throws Exception {
+        Session dono = auth.newUser();
+        Session intruso = auth.newUser();
+        String goalId = criarMeta(dono);
+
+        mockMvc.perform(post("/api/goals/{id}/withdrawals", goalId)
+                        .header(HttpHeaders.AUTHORIZATION, intruso.bearer())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"amount\":10.00,\"currency\":\"BRL\"}"))
+                .andExpect(status().isNotFound());
+    }
 }

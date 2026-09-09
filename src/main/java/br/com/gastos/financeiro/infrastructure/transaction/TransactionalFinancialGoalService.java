@@ -6,6 +6,7 @@ import br.com.gastos.financeiro.core.ports.ingoing.DeleteGoalUseCase;
 import br.com.gastos.financeiro.core.ports.ingoing.DepositToGoalUseCase;
 import br.com.gastos.financeiro.core.ports.ingoing.FindGoalUseCase;
 import br.com.gastos.financeiro.core.ports.ingoing.UpdateGoalUseCase;
+import br.com.gastos.financeiro.core.ports.ingoing.WithdrawFromGoalUseCase;
 import br.com.gastos.financeiro.core.service.FinancialGoalService;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,7 +22,7 @@ import java.util.UUID;
  * e o segundo sobrescreve o primeiro — o dinheiro some sem erro nenhum.
  */
 public class TransactionalFinancialGoalService implements CreateGoalUseCase, UpdateGoalUseCase,
-        DeleteGoalUseCase, DepositToGoalUseCase, FindGoalUseCase {
+        DeleteGoalUseCase, DepositToGoalUseCase, WithdrawFromGoalUseCase, FindGoalUseCase {
 
     private final FinancialGoalService delegate;
 
@@ -50,6 +51,13 @@ public class TransactionalFinancialGoalService implements CreateGoalUseCase, Upd
     @Override
     @Transactional
     public FinancialGoal execute(DepositCommand command) {
+        return delegate.execute(command);
+    }
+
+    /** Mesmo raciocínio do aporte: ler-somar-gravar precisa ser atômico, e aqui é ler-subtrair-gravar. */
+    @Override
+    @Transactional
+    public FinancialGoal execute(WithdrawCommand command) {
         return delegate.execute(command);
     }
 
