@@ -160,6 +160,34 @@ inofensivo justamente por ter deixado de valer.
 A senha do Postgres no `compose.yaml` é de um contêiner local que só escuta em `localhost` —
 não é credencial de produção.
 
+## Trava de tentativas de login
+
+Cinco erros para a mesma combinação de **e-mail e origem** travam aquela combinação por 15
+minutos, com `429` e cabeçalho `Retry-After`. Um acerto zera a contagem.
+
+A chave é o **par**, e não o e-mail sozinho, e essa é a decisão que importa: contando só por
+e-mail, qualquer pessoa que saiba o seu endereço tranca você para fora da sua própria conta
+com cinco senhas erradas, repetindo a cada expiração. A proteção viraria arma — é por isso
+que bloqueio puro por conta é desaconselhado pelo OWASP e pelo NIST SP 800-63B. Com o par,
+quem ataca tranca apenas `(e-mail, IP-do-atacante)`, e o dono continua entrando do IP dele.
+
+O contador sobe antes de qualquer consulta ao banco, então o `429` é idêntico para conta
+existente e inexistente — senão ele próprio viraria um jeito de descobrir quais e-mails estão
+cadastrados.
+
+**Ao hospedar atrás de um proxy, defina `FORWARD_HEADERS_STRATEGY=framework`.** Sem isso,
+`getRemoteAddr()` devolve o IP do proxy para todo mundo, todos os usuários caem na mesma
+origem, e a chave degenera de volta para só o e-mail. Só ative com um proxy confiável na
+frente: sem proxy, o cliente forja o `X-Forwarded-For` e escapa da trava.
+
+Duas coisas que esta versão não cobre, de propósito. O estado é em memória: reinicia zerado
+num deploy (um atacante não ganha nada esperando) e não é compartilhado entre instâncias.
+E um atacante mandando e-mails aleatórios de um IP só gera uma chave nova a cada tentativa,
+então o contador nunca dispara e o bcrypt roda a cada requisição (~76 ms; ~13/s saturam um
+núcleo). Cobrir isso exigiria um segundo contador por IP — foi deixado de fora por ser um
+ataque que exige alguém mirando o sistema de propósito, e é um contador a mais na mesma
+classe se um dia aparecer no log.
+
 ## Limitações conhecidas
 
 - **Sem verificação de e-mail.** Quem cadastrar um e-mail antes do dono pode

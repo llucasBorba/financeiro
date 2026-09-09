@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
+import br.com.gastos.financeiro.infrastructure.config.security.TooManyLoginAttemptsException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -76,6 +77,22 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      * assinatura válida, vencido). A mensagem devolvida é sempre genérica: detalhar qual parte
      * do token falhou só ajudaria quem está tentando forjar um.
      */
+    /**
+     * Tentativas de login demais. O 429 é idêntico para conta existente e inexistente — o
+     * contador sobe antes de qualquer consulta ao banco, então nem o status nem o corpo
+     * revelam quais e-mails estão cadastrados.
+     */
+    @ExceptionHandler(TooManyLoginAttemptsException.class)
+    public ResponseEntity<ProblemDetail> handleTooManyAttempts(TooManyLoginAttemptsException ex) {
+        long segundos = Math.max(1, ex.getRetryAfter().toSeconds());
+
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                // Cabeçalho padrão do 429: diz ao cliente quando vale a pena tentar de novo,
+                // em vez de deixá-lo martelando.
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(segundos))
+                .body(problem(HttpStatus.TOO_MANY_REQUESTS, "Tentativas demais", ex.getMessage()));
+    }
+
     @ExceptionHandler({AuthenticationException.class,
             org.springframework.security.core.AuthenticationException.class})
     public ProblemDetail handleAuthentication(Exception ex) {

@@ -7,6 +7,7 @@ import br.com.gastos.financeiro.core.ports.ingoing.AuthenticateWithGoogleUseCase
 import br.com.gastos.financeiro.core.ports.ingoing.FindUserUseCase;
 import br.com.gastos.financeiro.core.ports.ingoing.RegisterUserUseCase;
 import br.com.gastos.financeiro.infrastructure.identity.CurrentUser;
+import br.com.gastos.financeiro.infrastructure.config.security.LoginAttemptLimiter;
 import br.com.gastos.financeiro.infrastructure.config.security.GoogleTokenVerifier;
 import br.com.gastos.financeiro.infrastructure.config.security.GoogleTokenVerifier.GoogleAccount;
 import br.com.gastos.financeiro.infrastructure.config.security.JwtIssuer;
@@ -16,6 +17,7 @@ import br.com.gastos.financeiro.infrastructure.web.dto.LoginRequest;
 import br.com.gastos.financeiro.infrastructure.web.dto.RegisterRequest;
 import br.com.gastos.financeiro.infrastructure.web.dto.UserResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -44,19 +46,22 @@ public class AuthController {
     private final FindUserUseCase findUser;
     private final GoogleTokenVerifier googleTokenVerifier;
     private final JwtIssuer jwtIssuer;
+    private final LoginAttemptLimiter loginAttemptLimiter;
 
     public AuthController(RegisterUserUseCase registerUser,
                           AuthenticateUserUseCase authenticateUser,
                           AuthenticateWithGoogleUseCase authenticateWithGoogle,
                           FindUserUseCase findUser,
                           GoogleTokenVerifier googleTokenVerifier,
-                          JwtIssuer jwtIssuer) {
+                          JwtIssuer jwtIssuer,
+                          LoginAttemptLimiter loginAttemptLimiter) {
         this.registerUser = registerUser;
         this.authenticateUser = authenticateUser;
         this.authenticateWithGoogle = authenticateWithGoogle;
         this.findUser = findUser;
         this.googleTokenVerifier = googleTokenVerifier;
         this.jwtIssuer = jwtIssuer;
+        this.loginAttemptLimiter = loginAttemptLimiter;
     }
 
     /** Cadastro por e-mail e senha. Já devolve o token, para o usuário não precisar logar em seguida. */
@@ -68,11 +73,31 @@ public class AuthController {
         return ResponseEntity.status(HttpStatus.CREATED).body(tokenFor(user));
     }
 
+    /**
+     * A checagem do limitador vem ANTES de {@code authenticateUser}, e isso é o ponto: o login
+     * roda bcrypt (~76 ms) mesmo para e-mail inexistente, para não vazar quais contas existem
+     * pelo tempo de resposta. Se o limite fosse conferido depois, ele contaria as tentativas
+     * mas não evitaria o custo — e martelar esta rota continuaria consumindo CPU.
+     */
     @Operation(summary = "Autentica com e-mail e senha",
-            description = "Qualquer falha devolve a mesma resposta, seja e-mail inexistente ou senha errada: respostas distintas revelariam quais e-mails estão cadastrados.")
+            description = "Qualquer falha devolve a mesma resposta, seja e-mail inexistente ou senha errada: respostas distintas revelariam quais e-mails estão cadastrados. "
+                    + "Após 5 erros da mesma origem para o mesmo e-mail, responde 429 por 15 minutos; o cabeçalho Retry-After diz quando tentar de novo.")
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
-        User user = authenticateUser.execute(request.toCommand());
+    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request,
+                                              HttpServletRequest httpRequest) {
+        String origem = httpRequest.getRemoteAddr();
+
+        loginAttemptLimiter.checkAllowed(request.email(), origem);
+
+        User user;
+        try {
+            user = authenticateUser.execute(request.toCommand());
+        } catch (RuntimeException falha) {
+            loginAttemptLimiter.recordFailure(request.email(), origem);
+            throw falha;
+        }
+
+        loginAttemptLimiter.recordSuccess(request.email(), origem);
         return ResponseEntity.ok(tokenFor(user));
     }
 

@@ -13,6 +13,8 @@ import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.servlet.HandlerExceptionResolver;
 
+import java.time.Clock;
+
 /**
  * Regras de acesso da API.
  *
@@ -31,6 +33,17 @@ public class SecurityConfig {
             "/swagger-ui/**",
             "/swagger-ui.html"
     };
+
+    /**
+     * Relógio da aplicação, como bean para poder ser substituído nos testes.
+     *
+     * <p>Existe por causa do {@link LoginAttemptLimiter}: sem injetar o relógio, testar que a
+     * trava expira em 15 minutos exigiria esperar 15 minutos.
+     */
+    @Bean
+    public Clock clock() {
+        return Clock.systemUTC();
+    }
 
     @Bean
     public SecurityFilterChain securityFilterChain(
