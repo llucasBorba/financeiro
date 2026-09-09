@@ -1,0 +1,118 @@
+# =============================================================================
+#  EXEMPLO DE CONFIGURACAO — financeiro
+# =============================================================================
+#
+#  ESTE ARQUIVO E DOCUMENTACAO. A aplicacao NAO o le.
+#
+#  A configuracao de verdade esta em src/main/resources/application.properties, que ja tem
+#  todos os padroes e e versionado. O que este arquivo lista sao as VARIAVEIS DE AMBIENTE que
+#  sobrescrevem aqueles padroes — o que muda de maquina para maquina e de ambiente para
+#  ambiente, e o que voce precisa definir para rodar fora do seu computador.
+#
+#  Para usar como arquivo de propriedades mesmo:
+#      cp application.properties.example application-local.properties
+#      ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev,local
+#  (application-local.properties nao deve ser versionado se tiver valores reais)
+#
+#  Para usar como variaveis de ambiente, que e o caminho de producao:
+#      export JWT_SECRET=...
+#
+# =============================================================================
+#  1. PARA RODAR LOCALMENTE: nada. Zero configuracao.
+# =============================================================================
+#
+#  `./mvnw spring-boot:run` funciona sem definir nada:
+#    - o profile padrao e 'dev'
+#    - o spring-boot-docker-compose sobe o Postgres do compose.yaml sozinho
+#    - sem JWT_SECRET, um segredo aleatorio e gerado a cada inicializacao (e um aviso e logado)
+#
+#  O unico efeito colateral: reiniciar a aplicacao invalida os tokens ja emitidos, porque o
+#  segredo mudou. Se isso incomodar durante o desenvolvimento do front, defina JWT_SECRET.
+#
+# =============================================================================
+#  2. OBRIGATORIAS EM PRODUCAO
+# =============================================================================
+
+# --- Perfil ------------------------------------------------------------------
+# O padrao no arquivo versionado e 'dev'. ESQUECER esta variavel no deploy roda producao em
+# modo de desenvolvimento — inclusive gerando um segredo de JWT aleatorio a cada restart.
+# Defina sempre, explicitamente.
+SPRING_PROFILES_ACTIVE=prod
+
+# --- Assinatura dos tokens ---------------------------------------------------
+# Minimo 32 bytes. Fora do profile 'dev' a aplicacao RECUSA SUBIR sem esta variavel, com
+# mensagem acionavel — e proposital: e melhor nao subir do que subir assinando com um valor
+# previsivel.
+#
+# Gere um assim:
+#     openssl rand -base64 48
+#
+# NUNCA versione o valor. Ja aconteceu neste projeto: um segredo literal em
+# application-dev.properties foi sinalizado pelo GitGuardian. A resposta certa a um segredo
+# vazado e ROTACIONAR, nao apagar do historico.
+JWT_SECRET=
+
+# --- Banco de dados ----------------------------------------------------------
+# Em desenvolvimento o Docker Compose cuida disso e estas tres nao sao necessarias.
+# Em producao (Neon, Supabase, Render Postgres...) aponte para o banco gerenciado.
+DB_URL=jdbc:postgresql://host:5432/financeiro
+DB_USERNAME=
+DB_PASSWORD=
+
+# --- Origem do front (CORS) --------------------------------------------------
+# O navegador barra chamadas de origem nao listada ANTES de elas chegarem ao servidor, entao
+# esquecer isto nao gera log nenhum deste lado: o front simplesmente nao funciona.
+# Aceita varias, separadas por virgula.
+CORS_ALLOWED_ORIGINS=https://seu-front.vercel.app
+
+# =============================================================================
+#  3. OBRIGATORIA SE ESTIVER ATRAS DE PROXY (Render, Cloud Run, Fly, nginx)
+# =============================================================================
+
+# A trava de tentativas de login conta por (e-mail + origem). Atras de um proxy,
+# getRemoteAddr() devolve o IP do proxy para TODO MUNDO: todos os usuarios caem na mesma
+# origem e a chave degenera para so o e-mail — que e exatamente o desenho que permite alguem
+# trancar voce fora da propria conta.
+#
+# 'framework' faz o Spring resolver o IP real a partir do X-Forwarded-For.
+#
+# So defina havendo MESMO um proxy confiavel na frente: sem proxy, o cliente forja o cabecalho
+# e escapa da trava. Sem proxy, deixe 'none' (o padrao).
+FORWARD_HEADERS_STRATEGY=framework
+
+# =============================================================================
+#  4. OPCIONAIS — tem padrao e raramente precisam mudar
+# =============================================================================
+
+# Quanto tempo o access token vale. Formato ISO-8601 de duracao (PT1H = 1 hora, PT15M = 15 min).
+# Nao ha refresh token nem revogacao: um token vazado vale ate expirar. Aumentar isto e trocar
+# comodidade por risco, conscientemente.
+JWT_EXPIRATION=PT1H
+
+# Vai no campo 'iss' do token. So precisa mudar se mais de um sistema emitir tokens.
+JWT_ISSUER=financeiro-api
+
+# Client ID do Google, para conferir a audiencia do id_token que o front manda.
+# NAO e segredo (aparece no codigo do front), mas quem clonar o projeto precisa do proprio.
+GOOGLE_OAUTH_CLIENT_ID=
+
+# =============================================================================
+#  5. NAO MEXA A MENOS QUE SAIBA O QUE ESTA FAZENDO
+# =============================================================================
+
+# O esquema pertence ao Flyway. 'validate' faz o Hibernate apenas CONFERIR se as @Entity batem
+# com as tabelas, e recusar subir se divergirem. Trocar para 'update' faria o Hibernate alterar
+# o banco por conta propria, por fora das migracoes — e o fim da garantia de que o esquema em
+# producao e o mesmo que os testes exercitaram.
+JPA_DDL_AUTO=validate
+
+# Marca o estado atual do banco como ja aplicado, em vez de tentar rodar as migracoes desde a
+# V1. So serve para ADOTAR Flyway num banco que ja tem tabelas e nunca rodou migracao.
+# Ligar isto por engano num banco vazio faz a aplicacao subir sem nenhuma tabela.
+FLYWAY_BASELINE=false
+
+# =============================================================================
+#  NAO EXISTE MAIS NADA. Nao ha configuracao de e-mail: verificacao de e-mail e
+#  redefinicao de senha nao foram implementadas (exigiriam dominio proprio para envio).
+#  A troca de senha com o usuario logado, essa existe, e nao depende de e-mail.
+# =============================================================================

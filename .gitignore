@@ -31,3 +31,8 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Configuracao local (pode conter valores reais)
+application-local.properties
+src/main/resources/application-local.properties
+.env
