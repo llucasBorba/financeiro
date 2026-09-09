@@ -1,5 +1,6 @@
 package br.com.gastos.financeiro.infrastructure.config;
 
+import br.com.gastos.financeiro.core.ports.outgoing.BudgetRepositoryPort;
 import br.com.gastos.financeiro.core.ports.outgoing.CategoryRepositoryPort;
 import br.com.gastos.financeiro.core.ports.outgoing.ExpenseRepositoryPort;
 import br.com.gastos.financeiro.core.ports.outgoing.IncomeRepositoryPort;
@@ -12,8 +13,10 @@ import br.com.gastos.financeiro.core.service.ExpenseService;
 import br.com.gastos.financeiro.core.service.IncomeService;
 import br.com.gastos.financeiro.core.service.RecurringExpenseService;
 import br.com.gastos.financeiro.core.service.SummaryService;
+import br.com.gastos.financeiro.core.service.BudgetService;
 import br.com.gastos.financeiro.core.service.FinancialGoalService;
 import br.com.gastos.financeiro.core.service.UserService;
+import br.com.gastos.financeiro.infrastructure.transaction.TransactionalBudgetService;
 import br.com.gastos.financeiro.infrastructure.transaction.TransactionalCategoryService;
 import br.com.gastos.financeiro.infrastructure.transaction.TransactionalExpenseService;
 import br.com.gastos.financeiro.infrastructure.transaction.TransactionalIncomeService;
@@ -54,6 +57,20 @@ public class UseCaseConfig {
     @Bean
     public TransactionalFinancialGoalService financialGoalUseCases(FinancialGoalRepositoryPort financialGoalRepositoryPort) {
         return new TransactionalFinancialGoalService(new FinancialGoalService(financialGoalRepositoryPort));
+    }
+
+    /**
+     * O orçamento depende de TRÊS portas: a sua própria, a de categoria (para validar que a
+     * categoria existe, é do usuário e está ativa) e a de despesa (para somar o que foi gasto).
+     * É o serviço com mais dependências do sistema depois do resumo — e, como ele, não guarda
+     * nada derivado: a comparação é calculada a cada consulta.
+     */
+    @Bean
+    public TransactionalBudgetService budgetUseCases(BudgetRepositoryPort budgetRepositoryPort,
+                                                     CategoryRepositoryPort categoryRepositoryPort,
+                                                     ExpenseRepositoryPort expenseRepositoryPort) {
+        return new TransactionalBudgetService(
+                new BudgetService(budgetRepositoryPort, categoryRepositoryPort, expenseRepositoryPort));
     }
 
     @Bean
