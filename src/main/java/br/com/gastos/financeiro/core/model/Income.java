@@ -36,7 +36,9 @@ public class Income {
         this.userId = Objects.requireNonNull(userId, "O usuário é obrigatório.");
         this.amount = Objects.requireNonNull(amount, "O valor da receita é obrigatório.");
         this.description = normalizeDescription(description);
-        this.receivedAt = Objects.requireNonNull(receivedAt, "A data de recebimento é obrigatória.");
+        this.receivedAt = DateBounds.require(
+                Objects.requireNonNull(receivedAt, "A data de recebimento é obrigatória."),
+                "A data de recebimento");
     }
 
     public static Income create(UUID userId, Money amount, String description, LocalDate receivedAt) {
@@ -53,7 +55,9 @@ public class Income {
     public void update(Money amount, String description, LocalDate receivedAt) {
         this.amount = Objects.requireNonNull(amount, "O valor da receita é obrigatório.");
         this.description = normalizeDescription(description);
-        this.receivedAt = Objects.requireNonNull(receivedAt, "A data de recebimento é obrigatória.");
+        this.receivedAt = DateBounds.require(
+                Objects.requireNonNull(receivedAt, "A data de recebimento é obrigatória."),
+                "A data de recebimento");
     }
 
     public boolean isOwnedBy(UUID candidateUserId) {

@@ -42,7 +42,7 @@ public class RecurringExpense {
      * e faria {@link #defaultHorizon()} estourar {@code DateTimeException} ao somar meses além
      * do máximo representável — devolvendo 500 onde o certo é 400.
      */
-    private static final YearMonth LATEST_ACCEPTED_MONTH = YearMonth.of(2200, 12);
+    private static final YearMonth LATEST_ACCEPTED_MONTH = DateBounds.LATEST_MONTH;
 
     public static final int MAX_DESCRIPTION_LENGTH = 255;
 
@@ -156,11 +156,7 @@ public class RecurringExpense {
 
     private static YearMonth requireWithinRange(YearMonth month, String campo) {
         Objects.requireNonNull(month, campo + " é obrigatório.");
-        if (month.isAfter(LATEST_ACCEPTED_MONTH)) {
-            throw new IllegalArgumentException(
-                    campo + " não pode ser posterior a " + LATEST_ACCEPTED_MONTH + ".");
-        }
-        return month;
+        return DateBounds.require(month, campo);
     }
 
     /** Até onde gerar por padrão, quando ninguém informa um alvo. */

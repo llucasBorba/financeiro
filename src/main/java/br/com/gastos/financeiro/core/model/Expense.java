@@ -47,7 +47,9 @@ public class Expense {
         this.categoryId = Objects.requireNonNull(categoryId, "A categoria é obrigatória.");
         this.amount = Objects.requireNonNull(amount, "O valor da despesa é obrigatório.");
         this.description = description;
-        this.dueDate = Objects.requireNonNull(dueDate, "A data de vencimento é obrigatória.");
+        this.dueDate = DateBounds.require(
+                Objects.requireNonNull(dueDate, "A data de vencimento é obrigatória."),
+                "A data de vencimento");
         this.recurringExpenseId = recurringExpenseId;
         this.status = ExpenseStatus.PENDING;
         this.paidAt = null;
@@ -79,7 +81,9 @@ public class Expense {
      */
     public void update(UUID categoryId, Money amount, String description, LocalDate dueDate) {
         this.amount = Objects.requireNonNull(amount, "O valor da despesa é obrigatório.");
-        this.dueDate = Objects.requireNonNull(dueDate, "A data de vencimento é obrigatória.");
+        this.dueDate = DateBounds.require(
+                Objects.requireNonNull(dueDate, "A data de vencimento é obrigatória."),
+                "A data de vencimento");
         this.categoryId = Objects.requireNonNull(categoryId, "A categoria é obrigatória.");
         this.description = description;
     }
@@ -89,7 +93,9 @@ public class Expense {
             throw new IllegalStateException("Esta despesa já foi paga.");
         }
         this.status = ExpenseStatus.PAID;
-        this.paidAt = paymentDate != null ? paymentDate : LocalDateTime.now();
+        this.paidAt = paymentDate != null
+                ? DateBounds.require(paymentDate, "A data de pagamento")
+                : LocalDateTime.now();
     }
 
     /**

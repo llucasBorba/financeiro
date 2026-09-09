@@ -104,4 +104,29 @@ class MoneyTest {
     void rejectsExcessivePrecision() {
         assertThrows(IllegalArgumentException.class, () -> new Money(new BigDecimal("250.755"), "BRL"));
     }
+
+    @Test
+    @DisplayName("recusa quantia acima do que NUMERIC(15,2) comporta")
+    void rejeitaQuantiaAcimaDoTeto() {
+        // Sem este teto, o primeiro a reclamar era o banco no INSERT: 500 em vez de 400.
+        assertThrows(IllegalArgumentException.class,
+                () -> new Money(new BigDecimal("99999999999999999.99"), "BRL"));
+        assertThrows(IllegalArgumentException.class,
+                () -> new Money(new BigDecimal("10000000000000.00"), "BRL"));
+    }
+
+    @Test
+    @DisplayName("aceita exatamente o maior valor que a coluna comporta")
+    void aceitaOTetoExato() {
+        assertEquals(new BigDecimal("9999999999999.99"),
+                new Money(Money.MAX_AMOUNT, "BRL").getAmount());
+    }
+
+    @Test
+    @DisplayName("a soma que estoura o teto também é recusada")
+    void somaQueEstouraOTeto() {
+        Money quaseNoTeto = new Money(Money.MAX_AMOUNT, "BRL");
+        assertThrows(IllegalArgumentException.class,
+                () -> quaseNoTeto.add(new Money(new BigDecimal("0.01"), "BRL")));
+    }
 }

@@ -129,6 +129,19 @@ aplicação que não sobe.
   compilação incremental reaproveita `.class` antigos e dá falso verde.
 - **SQL portável nas migrações.** Os testes rodam em H2 e a produção em Postgres.
   Índice parcial (`CREATE INDEX ... WHERE`) é sintaxe só do Postgres e quebra a suíte.
+- **`MODE=PostgreSQL` no H2 emula sintaxe, não a faixa dos tipos.** Esta é a versão
+  perigosa da armadilha acima, porque falha ao contrário: o teste passa e a produção
+  diverge. O `DATE` do H2 cobre toda a faixa de `LocalDate` (até o ano 999999999);
+  o do Postgres para em 5874897. Uma data absurda passava verde na suíte inteira.
+  Pior ainda, o driver pgjdbc traduz `LocalDate.MAX` para o `infinity` do Postgres,
+  então nem a produção dava erro — gravava **201 Created** uma linha que nenhum filtro
+  de mês encontra (nada é `<= infinity`). Por isso limites de faixa moram no domínio
+  (`DateBounds`, `Money.MAX_AMOUNT`), que vale igual nos dois bancos, e não em
+  anotação de coluna.
+- **Toda coluna com limite precisa do limite espelhado no domínio.** As 13 colunas
+  `varchar` tinham `@Size` correspondente; as 5 `numeric(15,2)` e as 6 de data não
+  tinham nada. O ponto cego não foi aleatório: seguiu o tipo cujo limite estava
+  escrito de forma óbvia no `CREATE TABLE`.
 - **Números de migração só crescem.** Não "reserve" um número para depois: o Flyway
   recusa uma versão menor que a já aplicada.
 

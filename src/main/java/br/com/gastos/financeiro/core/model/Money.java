@@ -27,6 +27,23 @@ public class Money {
      */
     public static final int SCALE = 2;
 
+    /**
+     * Dígitos inteiros que a coluna {@code NUMERIC(15,2)} comporta: 15 de precisão total
+     * menos as 2 casas decimais.
+     */
+    public static final int MAX_INTEGER_DIGITS = 13;
+
+    /**
+     * Teto absoluto de qualquer quantia: 9.999.999.999.999,99.
+     *
+     * <p>Existe pelo mesmo motivo que {@link #SCALE}: sem ele, o único a reclamar de um valor
+     * grande demais era o banco, no INSERT, com {@code numeric field overflow} — um 500 no fim
+     * da requisição em vez de um 400 na entrada. E, como é o domínio que decide, a regra vale
+     * para qualquer adapter, não só para a rota HTTP.
+     */
+    public static final BigDecimal MAX_AMOUNT =
+            BigDecimal.TEN.pow(MAX_INTEGER_DIGITS).subtract(BigDecimal.ONE.movePointLeft(SCALE));
+
     private final BigDecimal amount;
     private final String currency;
 
@@ -35,7 +52,7 @@ public class Money {
         if (amount.signum() < 0) {
             throw new IllegalArgumentException("O valor não pode ser negativo.");
         }
-        this.amount = normalizeScale(amount);
+        this.amount = requireWithinCeiling(normalizeScale(amount));
         this.currency = normalizeCurrency(currency);
     }
 
@@ -89,6 +106,14 @@ public class Money {
      * <p>Sem isso, {@code "brl"} e {@code "BRL"} seriam moedas diferentes para o
      * {@link #validateCurrency(Money)} e um aporte legítimo seria recusado.
      */
+    private static BigDecimal requireWithinCeiling(BigDecimal amount) {
+        if (amount.compareTo(MAX_AMOUNT) > 0) {
+            throw new IllegalArgumentException(
+                    "O valor não pode passar de " + MAX_AMOUNT.toPlainString() + ".");
+        }
+        return amount;
+    }
+
     private static String normalizeCurrency(String currency) {
         if (currency == null || currency.isBlank()) {
             return DEFAULT_CURRENCY;

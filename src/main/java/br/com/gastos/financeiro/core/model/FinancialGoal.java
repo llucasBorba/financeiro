@@ -19,7 +19,7 @@ public class FinancialGoal {
         this.title = Objects.requireNonNull(title, "O título da meta é obrigatório.");
         this.targetAmount = Objects.requireNonNull(targetAmount, "O valor alvo é obrigatório.");
         this.currentAmount = Money.zero(targetAmount.getCurrency());
-        this.targetDate = targetDate;
+        this.targetDate = DateBounds.require(targetDate, "A data alvo");
     }
 
     /**
@@ -54,7 +54,7 @@ public class FinancialGoal {
 
         this.title = Objects.requireNonNull(title, "O título da meta é obrigatório.");
         this.targetAmount = targetAmount;
-        this.targetDate = targetDate;
+        this.targetDate = DateBounds.require(targetDate, "A data alvo");
     }
 
     // Regra de negócio: adicionar aporte à meta
